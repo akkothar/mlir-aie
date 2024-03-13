@@ -226,4 +226,22 @@ def AIELowerCascadeFlows : Pass<"aie-lower-cascade-flows", "DeviceOp"> {
   ];
 }
 
+
+
+def AIELowerPacketSwitchedObjectFifos : Pass<"aie-lower-packet-sw-objectFifos", "DeviceOp"> {
+  let summary = "Instantiate the buffers and locks of aie.packet_sw_objectFifo operations";
+  let description = [{
+    Replace each aie.packet_sw_objectFifo operation with aie.buffer and aie.lock operations.
+  }];
+
+  let constructor = "xilinx::AIE::createAIELowerPacketSwitchedObjectFifosPass()";
+  let dependentDialects = [
+    "mlir::scf::SCFDialect",
+    "mlir::func::FuncDialect",
+    "mlir::arith::ArithDialect",
+    "mlir::memref::MemRefDialect",
+    "xilinx::AIE::AIEDialect",
+  ];
+}
+
 #endif

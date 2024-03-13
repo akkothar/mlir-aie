@@ -866,6 +866,25 @@ ObjectFifoCreateOp ObjectFifoRegisterProcessOp::getObjectFifo() {
 }
 
 //===----------------------------------------------------------------------===//
+// PacketSwitchedObjectFifoOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult PacketSwitchedObjectFifoOp::verify() {
+  if (isa<ArrayAttr>(getElemNumber())) {
+    if (size_t numDepths = dyn_cast<ArrayAttr>(getElemNumber()).size();
+        numDepths != getConsumerTiles().size() + 1) // +1 for producer depth
+      return emitOpError("does not have enough depths specified for producer "
+                         "and for each consumer.");
+  }
+
+  return success();
+}
+
+TileOp PacketSwitchedObjectFifoOp::getProducerTileOp() {
+  return cast<TileOp>(getProducerTile().getDefiningOp());
+}
+
+//===----------------------------------------------------------------------===//
 // CascadeFlowOp
 //===----------------------------------------------------------------------===//
 

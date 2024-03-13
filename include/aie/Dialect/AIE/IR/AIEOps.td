@@ -1897,4 +1897,96 @@ def AIE_ObjectFifoRegisterProcessOp: AIE_Op<"objectfifo.register_process", []> {
   }];
 }
 
+
+def AIE_PacketSwitchedObjectFifoOp: AIE_Op<"packet_sw_objectfifo", [HasParent<"DeviceOp">, Symbol]> {
+  let summary = "Create a circular buffer or channel between two tiles over packet-switched stream";
+  let description = [{
+    The `aie.objectFifo` operation creates a circular buffer established between a producer and one or
+    more consumers, which are `aie.tile` operations. The`aie.objectFifo` instantiates the given number of
+    buffers (of given output type) and their locks in the Memory Module of the appropriate tile(s) after
+    lowering, based on tile-adjacency. These elements represent the conceptual depth of the `objectFifo` or,
+    more specifically, of its object pool.
+
+    For the producer and for each consumer, a different size (i.e., element number) can be specified as an
+    array of integer values. This will take effect in the case of consumers placed on tiles non-adjacent to
+    the producer. Otherwise, the producer size will be applied. If a single size is specified, it will be
+    applied to both producer and consumers.
+
+    This operation is then converted by the `AIEObjectFifoStatefulTransformPass` into `aie.buffers` and their associated
+    `aie.locks`. The pass also establishes Flow and DMA operations between the producer and consumer tiles if they are
+    not adjacent.
+
+    1-to-1 tile example:
+    ```
+      aie.packet_sw_objectfifo @of1 (%tile12, { %tile23 }, 4 : i32) : !aie.objectfifo<memref<16xi32>>
+    ```
+    This operation creates an `objectFifo` between `%tile12` and `%tile23` of 4 elements, each a buffer of 16 32-bit integers.
+    Note: If there are no `ObjectFifoAcquireOps` corresponding to this `objectFifo` on the cores of `%tile12` and `%tile23`,
+    then the depths of the object pools on each tile will be 4, as specified. Otherwise, the cores are scanned and the
+    highest number of acquired elements (+1 for prefetching) will be used instead, to ensure minimal resource usage.
+
+    1-to-2 tiles broadcast example:
+    ```
+      aie.packet_sw_objectfifo @of2 (%tile12, { %tile13, %tile23 }, 4 : i32) : !aie.objectfifo<memref<16xi32>>
+    ```
+    This operation creates an `objectFifo` between `%tile12` and tiles `%tile13`, `%tile23` of 4 elements, each a buffer of x16
+    32-bit integers.
+
+    1-to-2 tiles broadcast with explicit sizes example:
+    ```
+      aie.packet_sw_objectfifo @of3 (%tile12, { %tile13, %tile23 }, [2, 3, 4]) : !aie.objectfifo<memref<16xi32>>
+    ```
+    This operation creates an `objectFifo` between `%tile12`, `%tile13` and `%tile23`. The depths of the `objectFifo` object pool
+    at each tile are respectively 2, 3 and 4 for tiles `%tile12`, `%tile13` and `%tile23`. This overrides the depth analysis
+    specified in the first example.
+    ```
+  }];
+
+  let arguments = (
+    ins SymbolNameAttr:$sym_name,
+        Index:$producerTile,
+        Variadic<Index>:$consumerTiles,
+        AIE_ObjectFifo_Depth:$elemNumber,
+        TypeAttrOf<AIE_ObjectFifoType>:$elemType
+  );
+
+  let assemblyFormat = [{
+    $sym_name
+    `(`
+        $producerTile `,` `{` $consumerTiles `}` `,` $elemNumber
+    `)` attr-dict `:` $elemType
+  }];
+
+  let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+    int size(int index = 0) {
+      if (llvm::isa<mlir::ArrayAttr>(getElemNumber()))
+        return llvm::dyn_cast<mlir::IntegerAttr>(
+                   llvm::dyn_cast<mlir::ArrayAttr>(getElemNumber())[index])
+            .getInt();
+      else
+        return llvm::dyn_cast<mlir::IntegerAttr>(getElemNumber()).getInt();
+    }
+
+    xilinx::AIE::TileOp getProducerTileOp();
+
+    mlir::StringAttr name() {
+      return getOperation()->getAttrOfType<mlir::StringAttr>(
+          mlir::SymbolTable::getSymbolAttrName());
+    }
+  }];
+
+  let builders = [
+    OpBuilder<(ins "mlir::StringAttr":$sym_name, "mlir::Value":$producerTile,
+                   "mlir::ValueRange":$consumerTiles, "mlir::Attribute":$elemNumber, "mlir::Type":$elem_type), [{
+      odsState.addOperands(producerTile);
+      odsState.addOperands(consumerTiles);
+      odsState.addAttribute(getSymNameAttrName(odsState.name), sym_name);
+      odsState.addAttribute(getElemNumberAttrName(odsState.name), elemNumber);
+      odsState.addAttribute(getElemTypeAttrName(odsState.name), mlir::TypeAttr::get(elem_type));
+    }]>
+  ];
+}
+
 #endif // AIE_OPS

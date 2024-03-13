@@ -97,6 +97,40 @@ module @MM_2x2 {
     }
   }
 
+  // aie.packet_flow(1) {
+  //     aie.packet_source<%tile_6_0, DMA : 0>
+  //     aie.packet_dest<%tile_6_4, DMA : 0>
+  //     aie.packet_dest<%tile_7_4, DMA : 0>
+  //   }
+  //   aie.packet_flow(0) {
+  //     aie.packet_source<%tile_6_0, DMA : 0>
+  //     aie.packet_dest<%tile_6_3, DMA : 0>
+  //     aie.packet_dest<%tile_7_3, DMA : 0>
+  //   }
+  //   aie.packet_flow(3) {
+  //     aie.packet_source<%tile_6_0, DMA : 1>
+  //     aie.packet_dest<%tile_6_4, DMA : 1>
+  //   }
+  //   aie.packet_flow(2) {
+  //     aie.packet_source<%tile_6_0, DMA : 1>
+  //     aie.packet_dest<%tile_6_3, DMA : 1>
+  //   }
+  //   aie.packet_flow(5) {
+  //     aie.packet_source<%tile_7_0, DMA : 0>
+  //     aie.packet_dest<%tile_7_4, DMA : 1>
+  //   }
+  //   aie.packet_flow(4) {
+  //     aie.packet_source<%tile_7_0, DMA : 0>
+  //     aie.packet_dest<%tile_7_3, DMA : 1>
+  //   }
+  //   aie.packet_flow(6) {
+  //     aie.packet_source<%tile_6_4, DMA : 0>
+  //     aie.packet_dest<%tile_7_0, DMA : 0>
+  //   }
+  //   aie.packet_flow(7) {
+  //     aie.packet_source<%tile_7_4, DMA : 0>
+  //     aie.packet_dest<%tile_7_0, DMA : 0>
+  //   }
 
   %dma60 = aie.shim_dma(%t60) {
     aie.dma_start("MM2S", 0, ^bd4, ^dma2)
