@@ -14,11 +14,11 @@
 
 module @packet_switch {
    aie.device(xcvc1902) {
-      %tile10 = aie.tile(1, 3)
-      %tile13 = aie.tile(3, 3)
+      %tile13 = aie.tile(1, 3)
+      %tile33 = aie.tile(3, 3)
 
-      aie.packet_sw_objectfifo @of0 (%tile10, {%tile13}, 1 : i32) : !aie.objectfifo<memref<16xi32>>
-      aie.packet_sw_objectfifo @of1 (%tile10, {%tile13}, 1 : i32) : !aie.objectfifo<memref<16xi32>>
-      //aie.packet_sw_objectfifo @of2 (%tile10, {%tile13}, 1 : i32) : !aie.objectfifo<memref<16xi32>>
+      aie.packet_sw_objectfifo @of0 (%tile13, {%tile33}, 1 : i32) : !aie.objectfifo<memref<16xi32>>
+      aie.packet_sw_objectfifo @of1 (%tile13, {%tile33}, 1 : i32) : !aie.objectfifo<memref<16xi32>>
+      //aie.packet_sw_objectfifo @of2 (%tile13, {%tile33}, 1 : i32) : !aie.objectfifo<memref<16xi32>>
    }
 }
