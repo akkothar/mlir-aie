@@ -32,11 +32,11 @@ from ..extras.dialects.ext import memref
 # Comes from _aie
 register_dialect(get_dialect_registry())
 
-ipu_sync = partial(ipu_sync, column_num=1, row_num=1)
+npu_sync = partial(npu_sync, column_num=1, row_num=1)
 
 
-class IpuDmaMemcpyNd(IpuDmaMemcpyNdOp):
-    """Specialize IpuDmaMemcpyNdOp class constructor to take python integers"""
+class NpuDmaMemcpyNd(NpuDmaMemcpyNdOp):
+    """Specialize NpuDmaMemcpyNdOp class constructor to take python integers"""
 
     def __init__(
         self,
@@ -77,7 +77,7 @@ class IpuDmaMemcpyNd(IpuDmaMemcpyNdOp):
         )
 
 
-ipu_dma_memcpy_nd = IpuDmaMemcpyNd
+npu_dma_memcpy_nd = NpuDmaMemcpyNd
 
 
 _PROLOG = [
@@ -106,6 +106,7 @@ XAIEMLGBL_NOC_MODULE_DMA_MM2S_0_TASK_QUEUE = 0x0001D214
 XAIEMLGBL_NOC_MODULE_DMA_S2MM_0_TASK_QUEUE = 0x0001D204
 XAIEMLGBL_NOC_MODULE_DMA_S2MM_0_TASK_QUEUE_ENABLE_TOKEN_ISSUE_MASK = 0x80000000
 XAIEMLGBL_NOC_MODULE_DMA_S2MM_0_TASK_QUEUE_START_BD_ID_MASK = 0x0000000F
+XAIEMLGBL_CORE_MODULE_CORE_CONTROL = 0x00032000
 
 # from dpufw/include/RunInstOpt.h
 SHIM_DMA_BD0_BASE_ADDR = 0x1D000
@@ -118,8 +119,8 @@ def _get_prolog():
     return _PROLOG[:]
 
 
-# based on https://github.com/Xilinx/mlir-aie/blob/cb232a43383ef3b8efd8b408545c9b74885578ad/lib/Targets/AIETargetIPU.cpp
-def _ipu_sync(column, row=0, direction=0, channel=0, column_num=1, row_num=1):
+# based on https://github.com/Xilinx/mlir-aie/blob/cb232a43383ef3b8efd8b408545c9b74885578ad/lib/Targets/AIETargetNPU.cpp
+def _npu_sync(column, row=0, direction=0, channel=0, column_num=1, row_num=1):
     if isinstance(channel, IntegerAttr):
         channel = int(channel)
     words = [None] * 2
@@ -136,7 +137,7 @@ def _ipu_sync(column, row=0, direction=0, channel=0, column_num=1, row_num=1):
     return words
 
 
-def _ipu_write32(column, row, address, value):
+def _npu_write32(column, row, address, value):
     words = [None] * 3
     op_code = 2
     words[0] = (op_code & 0xFF) << 24
@@ -148,7 +149,7 @@ def _ipu_write32(column, row, address, value):
     return words
 
 
-def _ipu_shimtile_push_queue(channel_dir, channel_index, column, bd_id, repeats=0):
+def _npu_shimtile_push_queue(channel_dir, channel_index, column, bd_id, repeats=0):
     if isinstance(channel_index, IntegerAttr):
         channel_index = int(channel_index)
     if channel_dir == DMAChannelDir.MM2S:
@@ -164,45 +165,56 @@ def _ipu_shimtile_push_queue(channel_dir, channel_index, column, bd_id, repeats=
         value |= XAIEMLGBL_NOC_MODULE_DMA_S2MM_0_TASK_QUEUE_ENABLE_TOKEN_ISSUE_MASK
 
     row = 0
-    return _ipu_write32(column, row, address, value)
+    return _npu_write32(column, row, address, value)
 
 
 # based on ExecWriteBdExtendShimTileOpt @ dpufw/src/include/RunInstOpt.h:666
-def _exec_write_bd_extend_shim_tile_opt(iptr, tensor_addr=None):
+def _exec_write_bd_extend_shim_tile_opt(iptr, tensor_addr):
     bd_id = iptr[0] & 0x0000000F
     column = (iptr[0] & 0x00FF0000) >> 16
-    _addr_incr = iptr[1]
-    addr_low = iptr[3]
+    buffer_offset = iptr[3]
     # upper 16 bits are for packets...
-    addr_high = iptr[4] & 0x0000FFFF
-    if tensor_addr is None:
-        tensor_addr = (addr_high << 32) | addr_low
-    tensor_addr += DDR_AIE_ADDR_OFFSET
-    t_word0 = tensor_addr & 0xFFFFFFFC
-    t_word1 = (iptr[4] & 0xFFFF0000) | (tensor_addr >> 32)
+    tensor_addr += buffer_offset + DDR_AIE_ADDR_OFFSET
+    word3 = tensor_addr & 0xFFFFFFFC
+    word4 = (iptr[4] & 0xFFFF0000) | (tensor_addr >> 32)
 
     write_addr = SHIM_DMA_BD0_BASE_ADDR + (bd_id * SHIM_BD_OFFSET)
     row = 0
     words = [
-        *_ipu_write32(column, row, write_addr, iptr[2]),
-        *_ipu_write32(column, row, write_addr + 4, t_word0),
-        *_ipu_write32(column, row, write_addr + 8, t_word1),
-        *_ipu_write32(column, row, write_addr + 12, iptr[5]),
-        *_ipu_write32(column, row, write_addr + 16, iptr[6]),
-        *_ipu_write32(column, row, write_addr + 20, iptr[7]),
-        *_ipu_write32(column, row, write_addr + 24, iptr[8]),
-        *_ipu_write32(column, row, write_addr + 28, iptr[9]),
+        *_npu_write32(column, row, write_addr, iptr[2]),
+        *_npu_write32(column, row, write_addr + 4, word3),
+        *_npu_write32(column, row, write_addr + 8, word4),
+        *_npu_write32(column, row, write_addr + 12, iptr[5]),
+        *_npu_write32(column, row, write_addr + 16, iptr[6]),
+        *_npu_write32(column, row, write_addr + 20, iptr[7]),
+        *_npu_write32(column, row, write_addr + 24, iptr[8]),
+        *_npu_write32(column, row, write_addr + 28, iptr[9]),
+    ]
+    return words
+
+
+def _update_tensor_addr_shim_tile(column, bd_id, tensor_addr, buffer_offset=0):
+    # note upper 16 bits are for packets and thus this clears them
+    tensor_addr += buffer_offset + DDR_AIE_ADDR_OFFSET
+    word3 = tensor_addr & 0xFFFFFFFC
+    word4 = 0xFFFF0000 | (tensor_addr >> 32)
+
+    write_addr = SHIM_DMA_BD0_BASE_ADDR + (bd_id * SHIM_BD_OFFSET)
+    row = 0
+    words = [
+        *_npu_write32(column, row, write_addr + 4, word3),
+        *_npu_write32(column, row, write_addr + 8, word4),
     ]
     return words
 
 
 # corresponds to ExecWriteBdExtendShimTileOpt
-def _ipu_writebd_shimtile(
+def _npu_writebd_shimtile(
+    column,
     bd_id,
     buffer_length,
     buffer_offset=0,
     ddr_id=0,
-    column=0,
     d2_stride=1,
     d1_size=None,
     d1_stride=1,
@@ -238,7 +250,6 @@ def _ipu_writebd_shimtile(
     out_of_order_id = 0
     packet_id = 0
     packet_type = 0
-    valid_bd = 1
 
     words = [None] * 10
     op_code = 6
@@ -251,7 +262,9 @@ def _ipu_writebd_shimtile(
     # TODO: Address Incr
     words[1] = 0
     words[2] = buffer_length
+    # addr_low in the spec/docs
     words[3] = buffer_offset
+    # words[4] = addr_high & 0x0000FFFF
 
     # En Packet , OoO BD ID , Packet ID , Packet Type
     words[4] = (enable_packet & 0x1) << 30
@@ -276,6 +289,7 @@ def _ipu_writebd_shimtile(
     words[8] |= iteration_stride & 0xFFFFF
 
     # TODO: TLAST Suppress
+    valid_bd = 1
     words[9] = (next_bd & 0xF) << 27
     words[9] |= (use_next_bd & 0x1) << 26
     words[9] |= (valid_bd & 0x1) << 25
@@ -290,13 +304,28 @@ def _ipu_writebd_shimtile(
     return words
 
 
-class ipu:
-    write32 = _ipu_write32
-    shimtile_push_queue = _ipu_shimtile_push_queue
-    writebd_shimtile = _ipu_writebd_shimtile
-    sync = _ipu_sync
+def _npu_noop():
+    words = [None] * 1
+    op_code = 0
+    words[0] = (op_code & 0xFF) << 24
+    return words
+
+
+def _npu_core_enable(column, row):
+    # note this clears the reset bit
+    return _npu_write32(column, row, XAIEMLGBL_CORE_MODULE_CORE_CONTROL, 1)
+
+
+class npu:
+    noop = _npu_noop
+    write32 = _npu_write32
+    shimtile_push_queue = _npu_shimtile_push_queue
+    writebd_shimtile = _npu_writebd_shimtile
+    sync = _npu_sync
     get_prolog = _get_prolog
+    enable_cores = _npu_core_enable
     _exec_write_bd_extend_shim_tile_opt = _exec_write_bd_extend_shim_tile_opt
+    _update_tensor_addr_shim_tile = _update_tensor_addr_shim_tile
 
 
 def process_bd(

@@ -31,12 +31,17 @@ struct XCLBinGenConfig {
   std::string XCLBinKernelID;
   std::string XCLBinInstanceName;
   bool UseChess = false;
+  bool DisableThreading = false;
+  bool PrintIRAfterAll = false;
+  bool PrintIRBeforeAll = false;
+  bool PrintIRModuleScope = false;
+  bool Timing = false;
 };
 
 void findVitis(XCLBinGenConfig &TK);
 
 mlir::LogicalResult aie2xclbin(mlir::MLIRContext *ctx, mlir::ModuleOp moduleOp,
-                               XCLBinGenConfig &TK, llvm::StringRef OutputIPU,
+                               XCLBinGenConfig &TK, llvm::StringRef OutputNPU,
                                llvm::StringRef OutputXCLBin);
 
 } // namespace xilinx

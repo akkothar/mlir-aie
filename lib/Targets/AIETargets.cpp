@@ -137,14 +137,20 @@ void registerAIETranslations() {
   static llvm::cl::opt<bool> cdoUnified(
       "cdo-unified", llvm::cl::init(false),
       llvm::cl::desc("Emit unified CDO bin (or separate bins)"));
-  static llvm::cl::opt<bool> axiDebug("cdo-axi-debug", llvm::cl::init(false),
-                                      llvm::cl::desc("Emit axi debug info"));
+  static llvm::cl::opt<bool> cdoDebug("cdo-debug", llvm::cl::init(false),
+                                      llvm::cl::desc("Emit cdo debug info"));
   static llvm::cl::opt<bool> cdoAieSim(
       "cdo-aiesim", llvm::cl::init(false),
       llvm::cl::desc("AIESIM target cdo generation"));
+  static llvm::cl::opt<bool> cdoXaieDebug(
+      "cdo-xaie-debug", llvm::cl::init(false),
+      llvm::cl::desc("Emit libxaie debug info"));
   static llvm::cl::opt<size_t> cdoPartitionStartCol(
       "cdo-partition-start-col", llvm::cl::init(1),
       llvm::cl::desc("Partition starting column for CDO generation"));
+  static llvm::cl::opt<size_t> cdoEnableCores(
+      "cdo-enable-cores", llvm::cl::init(true),
+      llvm::cl::desc("Enable cores in CDO"));
 
   TranslateFromMLIRRegistration registrationMMap(
       "aie-generate-mmap", "Generate AIE memory map",
@@ -278,6 +284,12 @@ void registerAIETranslations() {
         return AIETranslateToXAIEV2(module, output);
       },
       registerDialects);
+  TranslateFromMLIRRegistration registrationHSA(
+      "aie-generate-hsa", "Generate hsa data movement configuration",
+      [](ModuleOp module, raw_ostream &output) {
+        return AIETranslateToHSA(module, output);
+      },
+      registerDialects);
   TranslateFromMLIRRegistration registrationXJSON(
       "aie-flows-to-json", "Translate AIE flows to JSON", AIEFlowsToJSON,
       registerDialects);
@@ -303,15 +315,15 @@ void registerAIETranslations() {
         } else
           workDirPath_ = workDirPath.getValue();
         LLVM_DEBUG(llvm::dbgs() << "work-dir-path: " << workDirPath_ << "\n");
-        return AIETranslateToCDODirect(module, workDirPath_.c_str(), bigEndian,
-                                       cdoUnified, axiDebug, cdoAieSim,
-                                       cdoPartitionStartCol);
+        return AIETranslateToCDODirect(
+            module, workDirPath_.c_str(), bigEndian, cdoUnified, cdoDebug,
+            cdoAieSim, cdoXaieDebug, cdoPartitionStartCol, cdoEnableCores);
       },
       registerDialects);
-  TranslateFromMLIRRegistration registrationIPU(
-      "aie-ipu-instgen", "Generate instructions for IPU",
+  TranslateFromMLIRRegistration registrationNPU(
+      "aie-npu-instgen", "Generate instructions for NPU",
       [](ModuleOp module, raw_ostream &output) {
-        return AIETranslateToIPU(module, output);
+        return AIETranslateToNPU(module, output);
       },
       registerDialects);
 }

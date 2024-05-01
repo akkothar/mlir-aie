@@ -179,7 +179,8 @@ class CMakeBuild(build_ext):
                 build_args += ["--config", cfg]
 
         if sys.platform.startswith("darwin"):
-            cmake_args += ["-DCMAKE_OSX_DEPLOYMENT_TARGET=11.6"]
+            osx_version = os.getenv("OSX_VERSION", "11.6")
+            cmake_args += [f"-DCMAKE_OSX_DEPLOYMENT_TARGET={osx_version}"]
             # Cross-compile support for macOS - respect ARCHFLAGS if set
             archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", ""))
             if archs:
@@ -207,7 +208,7 @@ class CMakeBuild(build_ext):
         )
 
 
-cmake_txt = open("llvm-project/llvm/CMakeLists.txt").read()
+cmake_txt = open("llvm-project/cmake/Modules/LLVMVersion.cmake").read()
 llvm_version = []
 for v in ["LLVM_VERSION_MAJOR", "LLVM_VERSION_MINOR", "LLVM_VERSION_PATCH"]:
     vn = re.findall(rf"set\({v} (\d+)\)", cmake_txt)

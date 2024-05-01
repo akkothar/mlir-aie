@@ -13,7 +13,7 @@
 #  -DAIE_RUNTIME_TARGETS: list of targets (x86_64,aarch64) to build runtime libs for, default: x86_64; cross compilation for aarch64 against default Vitis Sysroot
 #  -DAIE_RUNTIME_TEST_TARGET: runtime test target (x86_64 or aarch64) used for running unit test and tutorials, default x86_64
 
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.23)
 
 set(TOOLCHAINFILES_PATH ${CMAKE_SOURCE_DIR}/cmake/modulesXilinx)
 
@@ -98,13 +98,14 @@ find_package(Vitis 2023.2 COMPONENTS AIE AIE2)
 configure_file(./utils/vitisVariables.config.in
                ${CMAKE_BINARY_DIR}/utils/vitisVariables.config @ONLY)
 find_package(XRT)
+find_package(hsa-runtime64)
 
 # Set up default Vitis Sysroot as sysroot when testing on aarch64
 list(FIND AIE_RUNTIME_TARGETS "aarch64" indexAarch64)
 if(NOT DEFINED SysrootAarch64
    AND DEFINED VITIS_ROOT
    AND ${indexAarch64} GREATER -1)
-  set(Sysroot ${VITIS_ROOT}/gnu/aarch64/lin/aarch64-linux/aarch64-xilinx-linux/)
+  set(Sysroot ${VITIS_ROOT}/gnu/aarch64/lin/aarch64-linux/aarch64-xilinx-linux)
   if(AIE_RUNTIME_TEST_TARGET STREQUAL "aarch64")
     set(LIBCXX_VERSION "11.2.0")
     set(extraAieCcFlags
@@ -177,10 +178,11 @@ cmake_dependent_option(AIECC_LINK_WITH_XCHESSCC
 
 find_library(ELF_LIB elf)
 cmake_dependent_option(AIE_ENABLE_AIRBIN
-  "Enables emitting AIRBIN ELF binaries." ON "ELF_LIB" OFF)
+  "Enables emitting AIRBIN ELF binaries." OFF "ELF_LIB" OFF)
 
 
 add_flag_if_supported("-Werror=sign-compare" WERROR_SIGN_COMPARE)
+add_flag_if_supported("-Werror=unused" WERROR_USED)
 
 # What happens when you have a non-void function with no return?
 # No `ret` instruction is generated and so execution of that function just
@@ -242,10 +244,9 @@ endif()
 add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(aie_runtime_lib)
+add_subdirectory(aie_kernels)
 add_subdirectory(tools)
-if(NOT CMAKE_SYSTEM_NAME MATCHES "Windows")
-  add_subdirectory(runtime_lib)
-endif()
+add_subdirectory(runtime_lib)
 
 if(AIE_ENABLE_BINDINGS_PYTHON)
   add_subdirectory(python)
@@ -284,9 +285,10 @@ endif()
 
 
 # Last because each of these has its own CMakeLists.txt which reloads/re-finds LLVM, thus resettings globals.
-add_subdirectory(reference_designs)
+add_subdirectory(programming_examples)
+add_subdirectory(programming_guide)
 add_subdirectory(test)
-add_subdirectory(tutorials)
+add_subdirectory(mlir_tutorials)
 add_subdirectory(cmake/modules)
 
 get_filename_component(COMPILER_DIRECTORY ${CMAKE_CXX_COMPILER} DIRECTORY)

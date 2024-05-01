@@ -11,15 +11,28 @@
 #ifndef AIE_CONVERSION_PASSDETAIL_H_
 #define AIE_CONVERSION_PASSDETAIL_H_
 
+#include "aie/Conversion/Passes.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Interfaces/FunctionInterfaces.h"
 #include "mlir/Pass/Pass.h"
 
-namespace xilinx::aievec {
+namespace xilinx {
+
+namespace aievec {
+
 class AIEVecDialect;
-} // namespace xilinx::aievec
+
+} // namespace aievec
+
+namespace xllvm {
+
+class XLLVMDialect;
+
+} // namespace xllvm
+
+} // namespace xilinx
 
 namespace mlir {
 

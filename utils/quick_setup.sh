@@ -33,11 +33,9 @@ if [[ $WSL_DISTRO_NAME == "" ]]; then
 else
   echo "Environment is WSL"
 fi
-if ! hash python3.8; then
-  echo "This script requires python3.8"
-  echo "https://linuxgenie.net/how-to-install-python-3-8-on-ubuntu-22-04/"
-  echo "Don't forget python3.8-distutils!"
-  return 1
+if ! hash python3.10; then
+   echo "This script requires python3.10"
+   return 1
 fi
 if ! hash virtualenv; then
   echo "virtualenv is not installed"
@@ -47,7 +45,6 @@ if ! hash unzip; then
   echo "unzip is not installed"
   return 1
 fi
-alias python3=python3.8
 # if an install is already present, remove it to start from a clean slate
 rm -rf ironenv
 rm -rf my_install
@@ -64,9 +61,11 @@ if test -f "$VPP"; then
   AIETOOLS="`dirname $VPP`/../aietools"
   mkdir -p my_install
   pushd my_install
-  pip download mlir_aie -f https://github.com/Xilinx/mlir-aie/releases/expanded_assets/latest-wheels/
+  # pip download mlir_aie -f https://github.com/Xilinx/mlir-aie/releases/expanded_assets/latest-wheels/
+  wget -q --show-progress https://github.com/Xilinx/mlir-aie/releases/download/latest-wheels/mlir_aie-0.0.1.2024042515+13a9bbe-py3-none-manylinux_2_35_x86_64.whl
   unzip -q mlir_aie-*_x86_64.whl
-  pip download mlir -f https://github.com/Xilinx/mlir-aie/releases/expanded_assets/mlir-distro/
+  # pip download mlir -f https://github.com/Xilinx/mlir-aie/releases/expanded_assets/mlir-distro/
+  wget -q --show-progress https://github.com/Xilinx/mlir-aie/releases/download/mlir-distro/mlir-19.0.0.2024040913+d022f6b8-py3-none-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
   unzip -q mlir-*_x86_64.whl
   pip install https://github.com/makslevental/mlir-python-extras/archive/d84f05582adb2eed07145dabce1e03e13d0e29a6.zip
   rm -rf mlir*.whl
@@ -74,8 +73,9 @@ if test -f "$VPP"; then
   export LD_LIBRARY_PATH=`realpath mlir_aie/lib`:`realpath mlir/lib`:$LD_LIBRARY_PATH
   export PYTHONPATH=`realpath mlir_aie/python`:$PYTHONPATH
   popd
-  python3 -m pip install --upgrade --force-reinstall -r python/requirements.txt
-  pushd reference_designs/ipu-xrt
+  python3 -m pip install --upgrade --force-reinstall --no-cache-dir -r python/requirements.txt
+  python3 -m pip install --upgrade --force-reinstall --no-cache-dir -r python/requirements_ml.txt
+  pushd programming_examples
 else
   echo "Vitis not found! Exiting..."
 fi

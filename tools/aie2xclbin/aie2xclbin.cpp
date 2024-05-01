@@ -14,6 +14,7 @@
 #include "aie/Dialect/AIE/Transforms/AIEPasses.h"
 #include "aie/Dialect/AIEX/Transforms/AIEXPasses.h"
 #include "aie/InitialAllDialect.h"
+#include "aie/Target/LLVMIR/Dialect/XLLVM/XLLVMToLLVMIRTranslation.h"
 #include "aie/Targets/AIETargets.h"
 
 #include "mlir/Dialect/Affine/Passes.h"
@@ -49,41 +50,83 @@ using namespace xilinx;
 
 cl::OptionCategory AIE2XCLBinCat("AIE To XCLBin Options",
                                  "Options specific to the aie2xclbin tool");
+
 cl::opt<std::string> FileName(cl::Positional, cl::desc("<input mlir>"),
                               cl::Required, cl::cat(AIE2XCLBinCat));
+
 cl::opt<std::string>
     TmpDir("tmpdir", cl::desc("Directory used for temporary file storage"),
            cl::cat(AIE2XCLBinCat));
+
 cl::opt<bool> Verbose("v", cl::desc("Trace commands as they are executed"),
                       cl::cat(AIE2XCLBinCat));
+
 cl::opt<std::string>
     Peano("peano", cl::desc("Root directory where peano compiler is installed"),
           cl::cat(AIE2XCLBinCat));
+
 cl::opt<std::string>
     HostArch("host-target", cl::desc("Target architecture of the host program"),
              cl::init(HOST_ARCHITECTURE), cl::cat(AIE2XCLBinCat));
+
 cl::opt<std::string>
-    IPUInstsName("ipu-insts-name",
-                 cl::desc("Output instructions filename for IPU target"),
-                 cl::init("ipu_insts.txt"), cl::cat(AIE2XCLBinCat));
+    NPUInstsName("npu-insts-name",
+                 cl::desc("Output instructions filename for NPU target"),
+                 cl::init("npu_insts.txt"), cl::cat(AIE2XCLBinCat));
+
+cl::opt<bool>
+    PrintIRAfterAll("print-ir-after-all",
+                    cl::desc("Configure all pass managers in lowering from aie "
+                             "to xclbin to print IR after all passes"),
+                    cl::init(false), cl::cat(AIE2XCLBinCat));
+
+cl::opt<bool>
+    Timing("timing",
+           cl::desc("Configure all pass managers in lowering from aie to "
+                    "xclbin to print timing information for each pass"),
+           cl::init(false), cl::cat(AIE2XCLBinCat));
+
+cl::opt<bool>
+    PrintIRBeforeAll("print-ir-before-all",
+                     cl::desc("Configure all pass managers in lowering from "
+                              "aie to xclbin to print IR before all passes"),
+                     cl::init(false), cl::cat(AIE2XCLBinCat));
+
+cl::opt<bool>
+    DisableThreading("disable-threading",
+                     cl::desc("Configure all pass managers in lowering from "
+                              "aie to xclbin to disable multithreading"),
+                     cl::init(false), cl::cat(AIE2XCLBinCat));
+
+cl::opt<bool> PrintIRModuleScope(
+    "print-ir-module-scope",
+    cl::desc("Configure all pass managers in lowering from aie to xclbin to "
+             "print IR at the module scope"),
+    cl::init(false), cl::cat(AIE2XCLBinCat));
+
 cl::opt<std::string>
     XCLBinName("xclbin-name",
                cl::desc("Output xclbin filename for CDO/XCLBIN target"),
                cl::init("final.xclbin"), cl::cat(AIE2XCLBinCat));
+
 cl::opt<std::string> XCLBinKernelName("xclbin-kernel-name",
                                       cl::desc("Kernel name in xclbin file"),
                                       cl::init("MLIR_AIE"),
                                       cl::cat(AIE2XCLBinCat));
+
 cl::opt<std::string>
     XCLBinInstanceName("xclbin-instance-name",
                        cl::desc("Instance name in xclbin metadata"),
                        cl::init("MLIRAIEV1"), cl::cat(AIE2XCLBinCat));
+
 cl::opt<std::string> XCLBinKernelID("xclbin-kernel-id",
                                     cl::desc("Kernel id in xclbin file"),
                                     cl::init("0x901"), cl::cat(AIE2XCLBinCat));
+
 cl::opt<std::string> InstallDir("install-dir",
                                 cl::desc("Root of mlir-aie installation"),
                                 cl::cat(AIE2XCLBinCat));
+
 cl::opt<bool> UseChess("use-chess",
                        cl::desc("Use chess compiler instead of peano"),
                        cl::cat(AIE2XCLBinCat));
@@ -101,8 +144,14 @@ int main(int argc, char *argv[]) {
   TK.XCLBinKernelID = XCLBinKernelID;
   TK.XCLBinInstanceName = XCLBinInstanceName;
   TK.UseChess = UseChess;
+  TK.DisableThreading = DisableThreading;
+  TK.PrintIRAfterAll = PrintIRAfterAll;
+  TK.PrintIRBeforeAll = PrintIRBeforeAll;
+  TK.PrintIRModuleScope = PrintIRModuleScope;
+  TK.Timing = Timing;
 
-  findVitis(TK);
+  if (TK.UseChess)
+    findVitis(TK);
 
   if (Verbose)
     llvm::dbgs() << "\nCompiling " << FileName << "\n";
@@ -156,6 +205,7 @@ int main(int argc, char *argv[]) {
   xilinx::registerAllDialects(registry);
   registerBuiltinDialectTranslation(registry);
   registerLLVMDialectTranslation(registry);
+  xilinx::xllvm::registerXLLVMDialectTranslation(registry);
   ctx.appendDialectRegistry(registry);
 
   OwningOpRef<ModuleOp> owning =
@@ -164,7 +214,7 @@ int main(int argc, char *argv[]) {
   if (!owning)
     return 1;
 
-  if (failed(aie2xclbin(&ctx, *owning, TK, IPUInstsName.getValue(),
+  if (failed(aie2xclbin(&ctx, *owning, TK, NPUInstsName.getValue(),
                         XCLBinName.getValue())))
     return 1;
 

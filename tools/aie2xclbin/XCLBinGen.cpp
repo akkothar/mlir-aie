@@ -10,9 +10,12 @@
 
 #include "XCLBinGen.h"
 
+#include "aie/Conversion/AIEVecToLLVM/AIEVecToLLVM.h"
 #include "aie/Dialect/AIE/Transforms/AIEPasses.h"
+#include "aie/Dialect/AIEVec/Pipelines/Passes.h"
 #include "aie/Dialect/AIEX/Transforms/AIEXPasses.h"
 #include "aie/InitialAllDialect.h"
+#include "aie/Target/LLVMIR/Dialect/XLLVM/XLLVMToLLVMIRTranslation.h"
 #include "aie/Targets/AIETargets.h"
 
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
@@ -38,6 +41,7 @@
 #include "llvm/Support/ToolOutputFile.h"
 
 #include <regex>
+#include <sstream>
 #include <unordered_map>
 
 #ifdef _WIN32
@@ -47,6 +51,34 @@
 using namespace llvm;
 using namespace mlir;
 using namespace xilinx;
+
+namespace {
+
+// Apply the pass manager specific options of the XCLBinGenConfig to the pass
+// manager. These control when (if ever) and what IR gets printed between
+// passes, and whether the pass manager uses multi-theading.
+void applyConfigToPassManager(XCLBinGenConfig &TK, PassManager &pm) {
+
+  pm.getContext()->disableMultithreading(TK.DisableThreading);
+
+  bool printBefore = TK.PrintIRBeforeAll;
+  auto shouldPrintBeforePass = [printBefore](Pass *, Operation *) {
+    return printBefore;
+  };
+
+  bool printAfter = TK.PrintIRAfterAll;
+  auto shouldPrintAfterPass = [printAfter](Pass *, Operation *) {
+    return printAfter;
+  };
+
+  pm.enableIRPrinting(shouldPrintBeforePass, shouldPrintAfterPass,
+                      TK.PrintIRModuleScope);
+
+  bool timing = TK.Timing;
+  if (timing)
+    pm.enableTiming();
+}
+} // namespace
 
 void xilinx::findVitis(XCLBinGenConfig &TK) {
   const char *env_vitis = ::getenv("VITIS");
@@ -99,6 +131,7 @@ static void addAIELoweringPasses(OpPassManager &pm) {
   pm.addPass(AIE::createAIECanonicalizeDevicePass());
   OpPassManager &devicePM = pm.nest<AIE::DeviceOp>();
   devicePM.addPass(AIE::createAIEAssignLockIDsPass());
+  devicePM.addPass(AIE::createAIEAssignBufferDescriptorIDsPass());
   devicePM.addPass(AIE::createAIEObjectFifoRegisterProcessPass());
   devicePM.addPass(AIE::createAIEObjectFifoStatefulTransformPass());
   devicePM.addPass(AIEX::createAIEBroadcastPacketPass());
@@ -111,15 +144,21 @@ static void addAIELoweringPasses(OpPassManager &pm) {
 static void addLowerToLLVMPasses(OpPassManager &pm) {
   pm.addPass(createCanonicalizerPass());
   pm.addPass(createCSEPass());
+  pm.addPass(xilinx::aievec::createConvertAIEVecToLLVMPass());
+
   pm.addPass(createConvertVectorToLLVMPass());
   pm.addPass(memref::createExpandStridedMetadataPass());
   pm.addPass(createLowerAffinePass());
   pm.addPass(createConvertMathToLLVMPass());
   pm.addPass(createArithToLLVMConversionPass());
   pm.addPass(createFinalizeMemRefToLLVMConversionPass());
+  pm.addPass(createCanonicalizerPass());
+  pm.addPass(createCSEPass());
   ConvertFuncToLLVMPassOptions opts;
   opts.useBarePtrCallConv = true;
   pm.addPass(createConvertFuncToLLVMPass(opts));
+  pm.addPass(createCanonicalizerPass());
+  pm.addPass(createCSEPass());
   pm.addPass(createConvertControlFlowToLLVMPass());
   pm.addPass(createCanonicalizerPass());
   pm.addPass(createCSEPass());
@@ -216,7 +255,7 @@ static LogicalResult generateCoreElfFiles(ModuleOp moduleOp,
           moduleOp.emitOpError(errorMessage);
 
         std::string bcfFile = std::string(bcfFileIn->getBuffer());
-        std::regex r("^_include _file (.*)", std::regex::multiline);
+        std::regex r("_include _file (.*)");
         auto begin = std::sregex_iterator(bcfFile.begin(), bcfFile.end(), r);
         auto end = std::sregex_iterator();
         for (std::sregex_iterator i = begin; i != end; ++i)
@@ -264,17 +303,25 @@ static LogicalResult generateCoreElfFiles(ModuleOp moduleOp,
         std::string targetLower = StringRef(TK.TargetArch).lower();
         SmallVector<std::string, 10> flags;
         flags.push_back("-O2");
+#ifdef _WIN32
+        // TODO: Windows tries to load the wrong builtins path.
+        std::string targetFlag = "--target=" + targetLower;
+#else
         std::string targetFlag = "--target=" + targetLower + "-none-elf";
+#endif
         flags.push_back(targetFlag);
         flags.emplace_back(objFile);
         SmallString<64> meBasicPath(TK.InstallDir);
         sys::path::append(meBasicPath, "aie_runtime_lib", TK.TargetArch,
                           "me_basic.o");
         flags.emplace_back(meBasicPath);
+#ifndef _WIN32
+        // TODO: No libc build on windows
         SmallString<64> libcPath(TK.PeanoDir);
         sys::path::append(libcPath, "lib", targetLower + "-none-unknown-elf",
                           "libc.a");
         flags.emplace_back(libcPath);
+#endif
         flags.push_back("-Wl,--gc-sections");
         std::string ldScriptFlag = "-Wl,-T," + std::string(ldscript_path);
         flags.push_back(ldScriptFlag);
@@ -298,6 +345,8 @@ static LogicalResult generateCDO(MLIRContext *context, ModuleOp moduleOp,
   // This corresponds to `process_host_cgen`, which is listed as host
   // compilation in aiecc.py... not sure we need this.
   PassManager passManager(context, ModuleOp::getOperationName());
+  applyConfigToPassManager(TK, passManager);
+
   passManager.addNestedPass<AIE::DeviceOp>(AIE::createAIEPathfinderPass());
   passManager.addNestedPass<AIE::DeviceOp>(
       AIEX::createAIEBroadcastPacketPass());
@@ -332,21 +381,36 @@ static json::Object makeKernelJSON(std::string name, std::string id,
                                              {"address-qualifier", "SCALAR"},
                                              {"type", "uint64_t"},
                                              {"offset", "0x08"}},
-                                json::Object{{"name", "in"},
+                                json::Object{{"name", "bo0"},
                                              {"memory-connection", "HOST"},
                                              {"address-qualifier", "GLOBAL"},
                                              {"type", "char *"},
                                              {"offset", "0x10"}},
-                                json::Object{{"name", "tmp"},
+                                json::Object{{"name", "bo1"},
                                              {"memory-connection", "HOST"},
                                              {"address-qualifier", "GLOBAL"},
                                              {"type", "char *"},
                                              {"offset", "0x18"}},
-                                json::Object{{"name", "out"},
+                                json::Object{{"name", "bo2"},
                                              {"memory-connection", "HOST"},
                                              {"address-qualifier", "GLOBAL"},
                                              {"type", "char *"},
-                                             {"offset", "0x20"}}}},
+                                             {"offset", "0x20"}},
+                                json::Object{{"name", "bo3"},
+                                             {"memory-connection", "HOST"},
+                                             {"address-qualifier", "GLOBAL"},
+                                             {"type", "char *"},
+                                             {"offset", "0x28"}},
+                                json::Object{{"name", "bo4"},
+                                             {"memory-connection", "HOST"},
+                                             {"address-qualifier", "GLOBAL"},
+                                             {"type", "char *"},
+                                             {"offset", "0x30"}},
+                                json::Object{{"name", "bo5"},
+                                             {"memory-connection", "HOST"},
+                                             {"address-qualifier", "GLOBAL"},
+                                             {"type", "char *"},
+                                             {"offset", "0x38"}}}},
       {"instances", json::Array{json::Object{{"name", instance}}}}};
 }
 
@@ -405,12 +469,9 @@ static LogicalResult generateXCLBin(MLIRContext *context, ModuleOp moduleOp,
           "inference_fingerprint": "23423",
           "pre_post_fingerprint": "12345",
           "partition": {
-            "column_width": 1,
+            "column_width": 4,
             "start_columns": [
-              1,
-              2,
-              3,
-              4
+              1
             ]
           },
           "PDIs": [
@@ -550,16 +611,85 @@ static std::string chesshack(const std::string &input) {
   return result;
 }
 
+// A pass which removes the alignment attribute from llvm load operations, if
+// the alignment is less than 4 (2 or 1).
+//
+// Example replaces:
+//
+// ```
+//  %113 = llvm.load %112 {alignment = 2 : i64} : !llvm.ptr -> vector<32xbf16>
+// ```
+//
+// with
+//
+// ```
+//  %113 = llvm.load %112 : !llvm.ptr -> vector<32xbf16>
+// ```
+//
+// If this pass is not included in the pipeline, there is an alignment error
+// later in the compilation. This is a temporary workaround while a better
+// solution is found: propagation of memref.assume_alignment is one option. See
+// also https://jira.xilinx.com/projects/AIECC/issues/AIECC-589
+namespace {
+struct RemoveAlignment2FromLLVMLoadPass
+    : public PassWrapper<RemoveAlignment2FromLLVMLoadPass,
+                         OperationPass<ModuleOp>> {
+  void runOnOperation() override {
+    getOperation().walk([](Operation *op) {
+      if (auto loadOp = dyn_cast<LLVM::LoadOp>(op)) {
+        auto alignmentAttr = loadOp.getAlignmentAttr();
+        if (alignmentAttr) {
+          int alignmentVal = alignmentAttr.getValue().getSExtValue();
+          if (alignmentVal == 2 || alignmentVal == 1) {
+            loadOp.setAlignment(std::optional<uint64_t>());
+          }
+        }
+      }
+    });
+  }
+
+public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(
+      RemoveAlignment2FromLLVMLoadPass);
+};
+} // namespace
+
 static LogicalResult generateUnifiedObject(MLIRContext *context,
                                            ModuleOp moduleOp,
                                            XCLBinGenConfig &TK,
                                            const std::string &outputFile) {
   PassManager pm(context, moduleOp.getOperationName());
+  applyConfigToPassManager(TK, pm);
+
+  xilinx::xllvm::registerXLLVMDialectTranslation(*context);
   pm.addNestedPass<AIE::DeviceOp>(AIE::createAIELocalizeLocksPass());
   pm.addNestedPass<AIE::DeviceOp>(AIE::createAIENormalizeAddressSpacesPass());
   pm.addPass(AIE::createAIECoreToStandardPass());
   pm.addPass(AIEX::createAIEXToStandardPass());
+
+  // Convert specific vector dialect ops (like vector.contract) to the AIEVec
+  // dialect
+  {
+    xilinx::aievec::ConvertVectorToAIEVecOptions vectorToAIEVecOptions{};
+
+    std::string optionsString = [&]() {
+      std::ostringstream optionsStringStream;
+      optionsStringStream << "target-backend=";
+      optionsStringStream << (TK.UseChess ? "cpp" : "llvmir");
+      optionsStringStream << ' ' << "aie-target=aieml";
+      return optionsStringStream.str();
+    }();
+
+    if (failed(vectorToAIEVecOptions.parseFromString(optionsString))) {
+      return moduleOp.emitOpError("Failed to parse options from '")
+             << optionsString
+             << "': Failed to construct ConvertVectorToAIEVecOptions.";
+    }
+    xilinx::aievec::buildConvertVectorToAIEVec(pm, vectorToAIEVecOptions);
+  }
+
   addLowerToLLVMPasses(pm);
+  pm.addPass(std::make_unique<RemoveAlignment2FromLLVMLoadPass>());
 
   if (TK.Verbose) {
     llvm::outs() << "Running: ";
@@ -616,9 +746,11 @@ static LogicalResult generateUnifiedObject(MLIRContext *context,
       if (!chessIntrinsicIn)
         moduleOp.emitOpError(errorMessage);
 
-      newIntrinsicsLL = std::regex_replace(
-          std::string(chessIntrinsicIn->getBuffer()),
-          std::regex("^target.*", std::regex::multiline), "");
+      newIntrinsicsLL =
+          std::regex_replace(std::string(chessIntrinsicIn->getBuffer()),
+                             std::regex("target datalayout.*"), "");
+      newIntrinsicsLL = std::regex_replace(newIntrinsicsLL,
+                                           std::regex("target triple.*"), "");
     }
     {
       auto chessIntrinsicOut = openOutputFile(chessIntrinsicsLL);
@@ -685,7 +817,7 @@ static LogicalResult generateUnifiedObject(MLIRContext *context,
     sys::path::append(OptLLVMIRFile, "input.opt.ll");
     if (runTool(peanoOptBin,
                 {"-O2", "--inline-threshold=10", "-S", std::string(LLVMIRFile),
-                 "-o", std::string(OptLLVMIRFile)},
+                 "--disable-builtin=memset", "-o", std::string(OptLLVMIRFile)},
                 TK.Verbose) != 0)
       return moduleOp.emitOpError("Failed to optimize");
 
@@ -702,9 +834,11 @@ static LogicalResult generateUnifiedObject(MLIRContext *context,
 }
 
 LogicalResult xilinx::aie2xclbin(MLIRContext *ctx, ModuleOp moduleOp,
-                                 XCLBinGenConfig &TK, StringRef OutputIPU,
+                                 XCLBinGenConfig &TK, StringRef OutputNPU,
                                  StringRef OutputXCLBin) {
   PassManager pm(ctx, moduleOp.getOperationName());
+  applyConfigToPassManager(TK, pm);
+
   addAIELoweringPasses(pm);
 
   if (TK.Verbose) {
@@ -727,23 +861,25 @@ LogicalResult xilinx::aie2xclbin(MLIRContext *ctx, ModuleOp moduleOp,
     return moduleOp.emitOpError()
            << "Unexpected target architecture: " << TK.TargetArch;
 
-  // generateIPUInstructions
+  // generateNPUInstructions
   {
     PassManager pm(ctx, moduleOp.getOperationName());
-    pm.addNestedPass<AIE::DeviceOp>(AIEX::createAIEDmaToIpuPass());
+    applyConfigToPassManager(TK, pm);
+
+    pm.addNestedPass<AIE::DeviceOp>(AIEX::createAIEDmaToNpuPass());
     ModuleOp copy = moduleOp.clone();
     if (failed(pm.run(copy)))
-      return moduleOp.emitOpError("IPU Instruction pipeline failed");
+      return moduleOp.emitOpError("NPU Instruction pipeline failed");
 
     std::string errorMessage;
-    auto output = openOutputFile(OutputIPU, &errorMessage);
+    auto output = openOutputFile(OutputNPU, &errorMessage);
     if (!output) {
       llvm::errs() << errorMessage << "\n";
       return moduleOp.emitOpError("");
     }
 
-    if (failed(AIE::AIETranslateToIPU(copy, output->os())))
-      return moduleOp.emitOpError("IPU Instruction translation failed");
+    if (failed(AIE::AIETranslateToNPU(copy, output->os())))
+      return moduleOp.emitOpError("NPU Instruction translation failed");
 
     output->keep();
     copy->erase();

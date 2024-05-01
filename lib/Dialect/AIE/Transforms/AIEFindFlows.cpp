@@ -233,9 +233,9 @@ static void findFlowsFrom(TileOp op, ConnectivityAnalysis &analysis,
     LLVM_DEBUG(llvm::dbgs()
                << op << stringifyWireBundle(bundle) << " has "
                << op.getNumSourceConnections(bundle) << " Connections\n");
-    for (int i = 0; i < op.getNumSourceConnections(bundle); i++) {
+    for (size_t i = 0; i < op.getNumSourceConnections(bundle); i++) {
       std::vector<PacketConnection> tiles =
-          analysis.getConnectedTiles(op, {bundle, i});
+          analysis.getConnectedTiles(op, {bundle, (int)i});
       LLVM_DEBUG(llvm::dbgs() << tiles.size() << " Flows\n");
 
       for (PacketConnection &c : tiles) {
@@ -248,8 +248,8 @@ static void findFlowsFrom(TileOp op, ConnectivityAnalysis &analysis,
                                   destOp->getResult(0), destPort.bundle,
                                   destPort.channel);
         } else {
-          auto flowOp =
-              rewriter.create<PacketFlowOp>(Op->getLoc(), maskValue.value);
+          auto flowOp = rewriter.create<PacketFlowOp>(Op->getLoc(),
+                                                      maskValue.value, nullptr);
           PacketFlowOp::ensureTerminator(flowOp.getPorts(), rewriter,
                                          Op->getLoc());
           OpBuilder::InsertPoint ip = rewriter.saveInsertionPoint();

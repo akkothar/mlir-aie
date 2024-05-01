@@ -104,7 +104,7 @@ LogicalResult myVerifyOffsetSizeAndStrideOp(OffsetSizeAndStrideOpInterface op) {
 static VC1902TargetModel VC1902model;
 static VE2302TargetModel VE2302model;
 static VE2802TargetModel VE2802model;
-static IPUTargetModel IPUmodel;
+static NPUTargetModel NPUmodel;
 
 const AIETargetModel &getTargetModel(Operation *op) {
   if (auto t = dyn_cast<AIETarget>(op))
@@ -531,7 +531,7 @@ void printObjectFifoConsumerTiles(OpAsmPrinter &printer, Operation *op,
   size_t tileIdx = 0;
   for (auto tile : tiles) {
     printer << tile;
-    if (dimsPerTileAttr && dimsPerTileAttr.size() == tiles.size() &&
+    if (dimsPerTileAttr && tileIdx < dimsPerTileAttr.size() &&
         dimsPerTileAttr[tileIdx] && !dimsPerTileAttr[tileIdx].empty()) {
       printer << " fromStream ";
       printer.printStrippedAttrOrType(dimsPerTileAttr[tileIdx]);
@@ -1002,8 +1002,8 @@ const AIETargetModel &DeviceOp::getTargetModel() {
     return VE2302model;
   case AIEDevice::xcve2802:
     return VE2802model;
-  case AIEDevice::ipu:
-    return IPUmodel;
+  case AIEDevice::npu:
+    return NPUmodel;
   }
   return VC1902model;
 }
@@ -1042,7 +1042,7 @@ LogicalResult TileOp::verify() {
   return success();
 }
 
-int TileOp::getNumSourceConnections(WireBundle bundle) {
+size_t TileOp::getNumSourceConnections(WireBundle bundle) {
   const auto &targetModel = getTargetModel(*this);
   if (bundle == WireBundle::Core || bundle == WireBundle::DMA)
   // Note dest is correct here, since direction is reversed.
@@ -1058,7 +1058,7 @@ int TileOp::getNumSourceConnections(WireBundle bundle) {
   return 0;
 }
 
-int TileOp::getNumDestConnections(WireBundle bundle) {
+size_t TileOp::getNumDestConnections(WireBundle bundle) {
   const auto &targetModel = getTargetModel(*this);
   if (bundle == WireBundle::Core || bundle == WireBundle::DMA)
   // Note source is correct here, since direction is reversed.
@@ -1169,14 +1169,14 @@ LogicalResult ShimMuxOp::verify() {
   return success();
 }
 
-int ShimMuxOp::getNumSourceConnections(WireBundle bundle) {
+size_t ShimMuxOp::getNumSourceConnections(WireBundle bundle) {
   auto tile = getTileOp();
   const auto &targetModel = getTargetModel(*this);
   return targetModel.getNumSourceShimMuxConnections(tile.getCol(),
                                                     tile.getRow(), bundle);
 }
 
-int ShimMuxOp::getNumDestConnections(WireBundle bundle) {
+size_t ShimMuxOp::getNumDestConnections(WireBundle bundle) {
   auto tile = getTileOp();
   const auto &targetModel = getTargetModel(*this);
   return targetModel.getNumDestShimMuxConnections(tile.getCol(), tile.getRow(),
@@ -1196,6 +1196,11 @@ int ShimMuxOp::rowIndex() { return getTileOp().rowIndex(); }
 //===----------------------------------------------------------------------===//
 
 LogicalResult ShimDMAOp::verify() {
+  Region &body = getBody();
+  DenseSet<DMAChannel> usedChannels;
+  std::vector<DMAChannel> inputChannels;
+  std::vector<DMAChannel> outputChannels;
+
   if (getBody().empty())
     return emitOpError("should have non-empty body");
 
@@ -1205,6 +1210,34 @@ LogicalResult ShimDMAOp::verify() {
   if (HasSomeTerminator<DMAStartOp, NextBDOp, EndOp>::verifyTrait(*this)
           .failed())
     return failure();
+
+  for (auto &bodyOp : body.getOps()) {
+    // check for duplicate DMA channels within the same ShimDMAOp
+    if (auto dmaStart = dyn_cast<DMAStartOp>(bodyOp)) {
+      DMAChannel dmaChan = {dmaStart.getChannelDir(),
+                            dmaStart.getChannelIndex()};
+      if (usedChannels.count(dmaChan))
+        return dmaStart.emitOpError()
+               << "duplicate DMA channel "
+               << stringifyDMAChannelDir(dmaChan.direction) << dmaChan.channel
+               << " in MemOp";
+      usedChannels.insert(dmaChan);
+      // check if number of input and output channels is more than available
+      // hardware
+      if (dmaChan.direction == DMAChannelDir::S2MM)
+        inputChannels.push_back(dmaChan);
+      else
+        outputChannels.push_back(dmaChan);
+    }
+  }
+
+  if (inputChannels.size() >
+      getTileOp().getNumSourceConnections(WireBundle::DMA))
+    return emitOpError("uses more input channels than available on this tile");
+
+  if (outputChannels.size() >
+      getTileOp().getNumDestConnections(WireBundle::DMA))
+    return emitOpError("uses more output channels than available on this tile");
 
   return success();
 }
@@ -1338,6 +1371,8 @@ static ParseResult parseBufferInitialValue(OpAsmParser &parser, Type &type,
 LogicalResult MemOp::verify() {
   Region &body = getBody();
   DenseSet<DMAChannel> usedChannels;
+  std::vector<DMAChannel> inputChannels;
+  std::vector<DMAChannel> outputChannels;
   if (body.empty())
     return emitOpError("should have non-empty body");
 
@@ -1356,6 +1391,12 @@ LogicalResult MemOp::verify() {
                << stringifyDMAChannelDir(dmaChan.direction) << dmaChan.channel
                << " in MemOp";
       usedChannels.insert(dmaChan);
+      // check if number of input and output channels is more than available
+      // hardware
+      if (dmaChan.direction == DMAChannelDir::S2MM)
+        inputChannels.push_back(dmaChan);
+      else
+        outputChannels.push_back(dmaChan);
     }
 
     if (auto allocOp = dyn_cast<memref::AllocOp>(bodyOp))
@@ -1363,6 +1404,14 @@ LogicalResult MemOp::verify() {
         return allocOp.emitOpError()
                << "allocOp in MemOp region should have an id attribute";
   }
+
+  if (inputChannels.size() >
+      getTileOp().getNumSourceConnections(WireBundle::DMA))
+    return emitOpError("uses more input channels than available on this tile");
+
+  if (outputChannels.size() >
+      getTileOp().getNumDestConnections(WireBundle::DMA))
+    return emitOpError("uses more output channels than available on this tile");
 
   return success();
 }
@@ -1383,6 +1432,9 @@ Region *MemOp::getCallableRegion() { return &getBody(); }
 //===----------------------------------------------------------------------===//
 
 LogicalResult MemTileDMAOp::verify() {
+  std::vector<DMAChannel> inputChannels;
+  std::vector<DMAChannel> outputChannels;
+
   assert(getOperation()->getNumRegions() == 1 &&
          "MemTileDMAOp has zero region!");
   assert(!getBody().empty() && "MemTileDMAOp should have non-empty body");
@@ -1398,6 +1450,14 @@ LogicalResult MemTileDMAOp::verify() {
                << "allocOp in MemTileDMAOp region should have an id attribute";
     }
     if (auto startOp = dyn_cast<DMAStartOp>(bodyOp)) {
+      // check if number of input and output channels is more than available
+      // hardware
+      DMAChannel dmaChan = {startOp.getChannelDir(), startOp.getChannelIndex()};
+      if (dmaChan.direction == DMAChannelDir::S2MM)
+        inputChannels.push_back(dmaChan);
+      else
+        outputChannels.push_back(dmaChan);
+
       if (startOp.getChannelIndex() > 3) {
         // Channels 4 and 5 in a memtile are restricted to only access local
         // buffers and locks.
@@ -1455,6 +1515,14 @@ LogicalResult MemTileDMAOp::verify() {
     }
   }
 
+  if (inputChannels.size() >
+      getTileOp().getNumSourceConnections(WireBundle::DMA))
+    return emitOpError("uses more input channels than available on this tile");
+
+  if (outputChannels.size() >
+      getTileOp().getNumDestConnections(WireBundle::DMA))
+    return emitOpError("uses more output channels than available on this tile");
+
   return success();
 }
 
@@ -1465,9 +1533,22 @@ LogicalResult MemTileDMAOp::verify() {
 LogicalResult DMAOp::verify() {
   auto *parentOp = getOperation()->getParentOp();
   if (parentOp->getRegion(0).getBlocks().size() > 1)
-    return emitOpError("DMA op can only appear in single block region");
+    return emitOpError("DMAOp can only appear in single block region");
   if (!parentOp->getRegion(0).getOps<DMAStartOp>().empty())
-    return emitOpError("DMA op is not compatible with DMAStart ops");
+    return emitOpError("DMAOp is not compatible with DMAStart ops");
+  auto bdRegions = getBds();
+  for (auto &bdRegion : bdRegions) {
+    if (!bdRegion.hasOneBlock())
+      return emitOpError("DMAOp regions must have only one block");
+    auto bds = llvm::to_vector_of<DMABDOp>(bdRegion.front().getOps<DMABDOp>());
+    if (bds.size() != 1)
+      return emitOpError("DMAOp regions/blocks must have exactly one DMABDOp");
+    auto useLocks =
+        llvm::to_vector_of<UseLockOp>(bdRegion.front().getOps<UseLockOp>());
+    if (useLocks.size() != 2)
+      return emitOpError(
+          "DMAOp regions/blocks must have exactly two UseLock ops");
+  }
   return success();
 }
 
@@ -1483,60 +1564,79 @@ LogicalResult DMABDOp::verify() {
   if (!isa<BufferOp, ExternalBufferOp>(getBuffer().getDefiningOp()))
     return emitOpError(
         "BDs only support BufferOp or ExternalBufferOp operands.");
-  if (auto memOp = getOperation()->getParentOfType<MemOp>()) {
-    if (auto bufferOp = getBufferOp();
-        bufferOp.getTileOp().colIndex() != memOp.colIndex() ||
-        bufferOp.getTileOp().rowIndex() != memOp.rowIndex())
-      return emitOpError("can only access a buffer in the same tile.");
-  }
 
-  // The following checks only apply if non-default strides/wraps are defined.
-  if (getDimensions()) {
-    MemRefType buffer = getBuffer().getType();
-    // We are not restrictive about the type of the memref used as the input
-    // to the DMABD when used with multi-dimensional strides/wraps. Since the
-    // BD will use the memref as a base address and copy from it in 32 bit
-    // chunks, while assuming the layout of the memref is contiguous. We
-    // assume the user/compiler understands and accounts for this.
-    uint64_t memrefSize = 1; // in bytes
-    uint64_t maxIdx = 0;
-    for (int64_t memrefDim : buffer.getShape())
-      memrefSize *= 4 * memrefDim;
+  if (getLenInBytes() % 4)
+    return emitOpError("transfer length must be multiple of 4 (i.e., represent "
+                       "4 byte aligned address)");
 
-    ArrayRef<BDDimLayoutAttr> dims = *getDimensions();
+  TileID parentTileId = getParentTileElement(getOperation()).getTileID();
+
+  if (getOperation()->getParentOfType<MemOp>() &&
+      (getBufferOp().getTileOp().colIndex() != parentTileId.col ||
+       getBufferOp().getTileOp().rowIndex() != parentTileId.row))
+    return emitOpError(
+        "Core tile DMAs can only access a buffer in the same tile.");
+
+  const AIETargetModel &targetModel = getTargetModel(getOperation());
+
+  uint32_t maxBds = targetModel.getNumBDs(parentTileId.col, parentTileId.row);
+  if (std::optional<int32_t> bdId = getBdId();
+      bdId.has_value() && static_cast<uint32_t>(*bdId) >= maxBds)
+    return emitOpError("bdId attribute exceeds max: ") << maxBds - 1;
+  if (std::optional<int32_t> nextBdId = getNextBdId();
+      nextBdId.has_value() && static_cast<uint32_t>(*nextBdId) >= maxBds)
+    return emitOpError("nextBdId attribute exceeds max: ") << maxBds - 1;
+  if (auto dims = getDimensions(); dims.has_value()) {
     size_t maxNDims = 3;
     if (isa_and_nonnull<MemTileDMAOp>(getOperation()->getParentOp()))
       maxNDims = 4;
-
-    if (dims.size() > maxNDims)
+    if (dims->size() > maxNDims)
       return emitOpError() << "Cannot give more than "
                            << std::to_string(maxNDims)
                            << " dimensions for step sizes and wraps in this "
                               " tile (got "
-                           << std::to_string(dims.size()) << " dimensions).";
+                           << std::to_string(dims->size()) << " dimensions).";
 
-    for (BDDimLayoutAttr dim : dims) {
+    MemRefType buffer = getBuffer().getType();
+    int64_t maxIdx = 0;
+    for (BDDimLayoutAttr dim : *dims) {
       maxIdx += dim.getStride() * (dim.getSize() - 1);
       if (0 == dim.getStride())
         return emitOpError()
                << "Invalid step size; must be a positive integer.";
-      if (dim.getStride() > memrefSize)
+      if (dim.getStride() > buffer.getNumElements())
         return emitOpError()
-               << "Step size " << std::to_string(dim.getStride() * 4) << " "
-               << "bytes exceeds memref size " << std::to_string(memrefSize);
+               << "Step size " << std::to_string(dim.getStride()) << " "
+               << "exceeds memref size "
+               << std::to_string(buffer.getNumElements());
       if (dim.getSize() >= (1UL << 9) + 1)
         return emitOpError() << "Size may not exceed 1023.";
       if (dim.getStride() >= (1UL << 19))
         return emitOpError() << "Stride may not exceed " << (1 << 20);
     }
 
-    if (memrefSize <= 4 * maxIdx)
+    if (buffer.getNumElements() <= maxIdx)
       return emitOpError() << "Specified stride(s) and size(s) result in out "
                               "of bounds access in buffer, for index "
-                           << std::to_string(maxIdx) << ", accessing at "
-                           << std::to_string(4 * maxIdx)
-                           << " byte offset in memref of length "
-                           << std::to_string(memrefSize) << ".";
+                           << std::to_string(maxIdx) << " in memref of length "
+                           << std::to_string(buffer.getNumElements()) << ".";
+
+    // Since streams read 32b words, there's no way to read eg 16b with stride
+    // of 2 (ie lower halfs of each 32b). So force it to be 1 (and then in
+    // CDODirect/XAIEV2 scale the size by 4/getBufferElementTypeWidthInBytes).
+    if (getBufferElementTypeWidthInBytes() < 4 && dims->back().getStride() != 1)
+      return emitOpError(
+          "For <32b width datatypes, inner-most dim stride must be 1");
+  }
+  if (targetModel.isMemTile(parentTileId.col, parentTileId.row) ||
+      targetModel.isCoreTile(parentTileId.col, parentTileId.row)) {
+    if (auto baseAddr = getBufferOp().getAddress(); baseAddr.has_value()) {
+      int offsetInBytes = *baseAddr + getOffsetInBytes();
+      if (offsetInBytes % 4)
+        return emitOpError(
+                   "bd address must be 4 byte (32b) aligned; got base+offset: ")
+               << offsetInBytes << " (bytes)";
+    }
   }
 
   if (!getLen() && !getBuffer().getType().hasStaticShape())
@@ -1848,14 +1948,14 @@ LogicalResult UseLockOp::verify() {
 
 namespace xilinx::AIE {
 
-int SwitchboxOp::getNumSourceConnections(WireBundle bundle) {
+size_t SwitchboxOp::getNumSourceConnections(WireBundle bundle) {
   auto tile = getTileOp();
   const auto &targetModel = getTargetModel(*this);
   return targetModel.getNumSourceSwitchboxConnections(tile.getCol(),
                                                       tile.getRow(), bundle);
 }
 
-int SwitchboxOp::getNumDestConnections(WireBundle bundle) {
+size_t SwitchboxOp::getNumDestConnections(WireBundle bundle) {
   auto tile = getTileOp();
   const auto &targetModel = getTargetModel(*this);
   return targetModel.getNumDestSwitchboxConnections(tile.getCol(),

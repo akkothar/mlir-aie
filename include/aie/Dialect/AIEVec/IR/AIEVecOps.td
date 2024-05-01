@@ -14,7 +14,6 @@
 #define AIEVEC_OPS
 
 include "aie/Dialect/AIE/IR/AIEAttrs.td"
-include "aie/Dialect/AIEVec/IR/AIEVecLLVMIntrOp.td"
 include "aie/Dialect/AIEVec/IR/AIEVecTypes.td"
 include "aie/Dialect/AIEVec/IR/AIEVecTypeConstraints.td"
 
@@ -402,6 +401,7 @@ def AIEVec_CastOp:
     OpBuilder<(ins "mlir::Value":$source, "bool":$isResAcc),
     [{build($_builder, $_state, source.getType(), source, isResAcc);}]>
   ];
+  let hasFolder = 1;
 }
 
 def AIEVec_SRSOp:

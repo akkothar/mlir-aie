@@ -78,10 +78,10 @@ def Interconnect : OpInterface<"Interconnect"> {
       "int", "rowIndex", (ins )
     >,
     InterfaceMethod<[{}],
-      "int", "getNumSourceConnections", (ins "WireBundle":$bundle)
+      "size_t", "getNumSourceConnections", (ins "WireBundle":$bundle)
     >,
     InterfaceMethod<[{}],
-      "int", "getNumDestConnections", (ins "WireBundle":$bundle)
+      "size_t", "getNumDestConnections", (ins "WireBundle":$bundle)
     >
   ];
 }
@@ -133,12 +133,7 @@ def AIETarget : OpInterface<"AIETarget"> {
   ];
 }
 
-// def OffloadingTranslationAttrTrait :
-//    NativeTrait<"OffloadingTranslationAttrTrait", ""> {
-//   let cppNamespace = "::mlir::gpu";
-// }
-
-def MyOffsetSizeAndStrideOpInterface: OpInterfaceTrait<"::xilinx::AIE::MyOffsetSizeAndStrideOpInterface"> {
-}
+// Don't delete - see AIEDialect::myVerifyOffsetSizeAndStrideOp
+def MyOffsetSizeAndStrideOpInterface: OpInterfaceTrait<"::xilinx::AIE::MyOffsetSizeAndStrideOpInterface"> {}
 
 #endif // AIE_INTERFACES

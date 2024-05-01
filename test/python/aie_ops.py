@@ -7,22 +7,23 @@ import numpy as np
 
 from aie.dialects.aie import (
     AIEDevice,
-    Buffer,
     Core,
     Device,
-    ExternalBuffer,
     MemOp,
     ObjectFifoPort,
-    ObjectFifoType,
-    acquire,
+    ObjectFifoSubviewType,
+    buffer,
+    external_buffer,
     bd_dim_layout,
     end,
-    objectfifo,
-    objectfifo_link,
-    objectfifo_release,
+    object_fifo,
+    objectfifo_acquire,
+    object_fifo_link,
     objectfifo_subview_access,
     tile,
     cascade_flow,
+    WireBundle,
+    packetflow,
 )
 from aie.ir import InsertionPoint, Block, TypeAttr
 from aie.extras.context import mlir_mod_ctx
@@ -84,11 +85,11 @@ def deviceOp():
 @construct_and_print_module
 def bufferOp():
     t = tile(col=0, row=3)
-    b = Buffer(tile=t, shape=(12,), datatype=T.i32())
-    b = Buffer(
-        tile=t,
-        shape=(2, 2),
-        datatype=T.i32(),
+    b = buffer(t, (12,), T.i32())
+    b = buffer(
+        t,
+        (2, 2),
+        T.i32(),
         initial_value=np.arange(2 * 2, dtype=np.int32).reshape(2, 2),
     )
 
@@ -97,7 +98,7 @@ def bufferOp():
 # CHECK: %[[VAL_0:.*]] = aie.external_buffer : memref<12xi32>
 @construct_and_print_module
 def externalBufferOp():
-    b = ExternalBuffer(shape=(12,), datatype=T.i32())
+    b = external_buffer((12,), T.i32())
 
 
 # CHECK-LABEL: objFifo
@@ -111,12 +112,12 @@ def objFifo():
     with InsertionPoint(bb):
         tile0 = tile(col=6, row=6)
         tile1 = tile(col=2, row=2)
-        objectfifo(
+        object_fifo(
             "of0",
             tile0,
-            [tile1],
+            tile1,
             2,
-            TypeAttr.get(ObjectFifoType.get(T.memref(12, T.f16()))),
+            T.memref(12, T.f16()),
             [bd_dim_layout(size=1, stride=2)],
             [[bd_dim_layout(size=1, stride=2)]],
         )
@@ -124,39 +125,23 @@ def objFifo():
 
 
 # CHECK-LABEL: objFifoLink
-# CHECK: %[[VAL_0:.*]] = aie.tile(6, 6)
-# CHECK: %[[VAL_1:.*]] = aie.tile(2, 2)
-# CHECK: %[[VAL_2:.*]] = aie.tile(7, 7)
+# CHECK: %[[VAL_0:.*]] = aie.tile(6, 3)
+# CHECK: %[[VAL_1:.*]] = aie.tile(6, 1)
+# CHECK: %[[VAL_2:.*]] = aie.tile(7, 3)
 # CHECK: aie.objectfifo @[[VAL_3:.*]](%[[VAL_0]], {%[[VAL_1]]}, 2 : i32) : !aie.objectfifo<memref<12xf16>>
 # CHECK: aie.objectfifo @[[VAL_4:.*]](%[[VAL_1]], {%[[VAL_2]]}, 2 : i32) : !aie.objectfifo<memref<12xf16>>
 # CHECK: aie.objectfifo.link [@[[VAL_3]]] -> [@[[VAL_4]]]()
 @construct_and_print_module
 def objFifoLink():
-    dev = Device(AIEDevice.xcvc1902)
+    dev = Device(AIEDevice.xcve2302)
     bb = Block.create_at_start(dev.body_region)
     with InsertionPoint(bb):
-        tile0 = tile(col=6, row=6)
-        tile1 = tile(col=2, row=2)
-        tile2 = tile(col=7, row=7)
-        objectfifo(
-            "of0",
-            tile0,
-            [tile1],
-            2,
-            TypeAttr.get(ObjectFifoType.get(T.memref(12, T.f16()))),
-            [],
-            [],
-        )
-        objectfifo(
-            "of1",
-            tile1,
-            [tile2],
-            2,
-            TypeAttr.get(ObjectFifoType.get(T.memref(12, T.f16()))),
-            [],
-            [],
-        )
-        objectfifo_link(["of0"], ["of1"])
+        tile0 = tile(col=6, row=3)
+        tile1 = tile(col=6, row=1)
+        tile2 = tile(col=7, row=3)
+        of0 = object_fifo("of0", tile0, tile1, 2, T.memref(12, T.f16()))
+        of1 = object_fifo("of1", tile1, tile2, 2, T.memref(12, T.f16()))
+        object_fifo_link(of0, of1)
         end()
 
 
@@ -172,24 +157,11 @@ def objFifoAcquire():
     with InsertionPoint(bb):
         tile0 = tile(col=6, row=6)
         tile1 = tile(col=2, row=2)
-        objectfifo(
-            "of0",
-            tile0,
-            [tile1],
-            2,
-            TypeAttr.get(ObjectFifoType.get(T.memref(12, T.f16()))),
-            [],
-            [],
-        )
+        of0 = object_fifo("of0", tile0, tile1, 2, T.memref(12, T.f16()))
         C = Core(tile1)
         bb = Block.create_at_start(C.body)
         with InsertionPoint(bb):
-            acq = acquire(
-                port=ObjectFifoPort.Consume,
-                of_name="of0",
-                num_elem=1,
-                datatype=T.memref(12, T.f16()),
-            )
+            acq = of0.acquire(port=ObjectFifoPort.Consume, num_elem=1)
             end()
 
 
@@ -206,23 +178,15 @@ def objFifoSubviewAccess():
     with InsertionPoint(bb):
         tile0 = tile(col=6, row=6)
         tile1 = tile(col=2, row=2)
-        objectfifo(
-            "of0",
-            tile0,
-            [tile1],
-            2,
-            TypeAttr.get(ObjectFifoType.get(T.memref(12, T.f16()))),
-            [],
-            [],
-        )
+        of0 = object_fifo("of0", tile0, tile1, 2, T.memref(12, T.f16()))
         C = Core(tile1)
         bb = Block.create_at_start(C.body)
         with InsertionPoint(bb):
-            acq = acquire(
-                port=ObjectFifoPort.Consume,
-                of_name="of0",
-                num_elem=1,
-                datatype=T.memref(12, T.f16()),
+            acq = objectfifo_acquire(
+                ObjectFifoSubviewType.get(T.memref(12, T.f16())),
+                ObjectFifoPort.Consume,
+                "of0",
+                1,
             )
             subview = objectfifo_subview_access(
                 T.memref(12, T.f16()), subview=acq, index=0
@@ -242,19 +206,11 @@ def objFifoRelease():
     with InsertionPoint(bb):
         tile0 = tile(col=6, row=6)
         tile1 = tile(col=2, row=2)
-        objectfifo(
-            "of0",
-            tile0,
-            [tile1],
-            2,
-            TypeAttr.get(ObjectFifoType.get(T.memref(12, T.f16()))),
-            [],
-            [],
-        )
+        of0 = object_fifo("of0", tile0, tile1, 2, T.memref(12, T.f16()))
         C = Core(tile0)
         bb = Block.create_at_start(C.body)
         with InsertionPoint(bb):
-            acq = objectfifo_release(ObjectFifoPort.Produce, "of0", 1)
+            acq = of0.release(ObjectFifoPort.Produce, 1)
             end()
 
 
@@ -267,6 +223,27 @@ def cascadeFlowOp():
     t0 = tile(col=1, row=3)
     t1 = tile(col=2, row=3)
     cascade_flow(t0, t1)
+
+
+# CHECK-LABEL: packetFlowOp
+# CHECK: %[[VAL_0:.*]] = aie.tile(1, 3)
+# CHECK: aie.packet_flow(16) {
+# CHECK:   aie.packet_source<%[[VAL_0]], Core : 0>
+# CHECK:   aie.packet_dest<%[[VAL_0]], Core : 0>
+# CHECK: } {keep_pkt_header = true}
+@construct_and_print_module
+def packetFlowOp():
+    t0 = tile(col=1, row=3)
+    packetflow(
+        pkt_id=0x10,
+        source=t0,
+        source_port=WireBundle.Core,
+        source_channel=0,
+        dest=t0,
+        dest_port=WireBundle.Core,
+        dest_channel=0,
+        keep_pkt_header=True,
+    )
 
 
 # CHECK-LABEL: test_module_context

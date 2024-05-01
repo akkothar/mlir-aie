@@ -25,6 +25,11 @@ def AIEAssignBufferAddresses : Pass<"aie-assign-buffer-addresses", "DeviceOp"> {
   }];
 
   let constructor = "xilinx::AIE::createAIEAssignBufferAddressesPass()";
+
+  let options = [
+    Option<"clBasicAlloc", "basic-alloc", "bool", /*default=*/"false",
+            "Flag to enable the basic sequential allocation scheme (not bank-aware).">
+  ];
 }
 
 def AIEAssignLockIDs : Pass<"aie-assign-lock-ids", "DeviceOp"> {
@@ -97,6 +102,11 @@ def AIELocalizeLocks : Pass<"aie-localize-locks", "DeviceOp"> {
   }];
 
   let constructor = "xilinx::AIE::createAIELocalizeLocksPass()";
+}
+
+def AIEAssignBufferDescriptorIDs : Pass<"aie-assign-bd-ids", "DeviceOp"> {
+  let summary = "Assign bd ids to aie.dma_bd ops.";
+  let constructor = "xilinx::AIE::createAIEAssignBufferDescriptorIDsPass()";
 }
 
 def AIENormalizeAddressSpaces : Pass<"aie-normalize-address-spaces", "DeviceOp"> {

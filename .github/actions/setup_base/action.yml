@@ -79,18 +79,18 @@ runs:
         
         sudo apt-get update
         sudo apt-get install -y binutils-aarch64-linux-gnu \
-          g++-aarch64-linux-gnu gcc-aarch64-linux-gnu
+          g++-aarch64-linux-gnu gcc-aarch64-linux-gnu openssl libssl-dev
 
     - name: pip install standard tools
       shell: bash
       run: pip install cibuildwheel wheel
 
     - name: install rename
-      if: ${{ inputs.MATRIX_OS == 'ubuntu-20.04' || inputs.MATRIX_OS == 'macos-11' }}
+      if: ${{ inputs.MATRIX_OS == 'ubuntu-20.04' || inputs.MATRIX_OS == 'macos-12' || inputs.MATRIX_OS == 'macos-14' }}
       shell: bash
       run: |
         
-        if [ x"${{ inputs.MATRIX_OS }}" == x"macos-11" ]; then
+        if [ x"${{ inputs.MATRIX_OS }}" == x"macos-12" ] || [ x"${{ inputs.MATRIX_OS }}" == x"macos-14" ]; then
           brew install rename
         else
           sudo apt-get install -y rename
@@ -107,7 +107,7 @@ runs:
       shell: pwsh
 
     - run: echo "TEMP=/tmp" >> $GITHUB_ENV
-      if: ${{ inputs.MATRIX_OS == 'ubuntu-20.04' || inputs.MATRIX_OS == 'macos-11' }}
+      if: ${{ inputs.MATRIX_OS == 'ubuntu-20.04' || inputs.MATRIX_OS == 'macos-12' || inputs.MATRIX_OS == 'macos-14' }}
       shell: bash
 
     - name: Set workspace root
@@ -127,7 +127,7 @@ runs:
           rm -rf "$WORKSPACE_ROOT"
         fi 
         
-        git clone -b ${{ github.head_ref || github.ref_name }} https://github.com/${{ github.repository }}.git "$WORKSPACE_ROOT"
+        git clone --recursive -b ${{ github.head_ref || github.ref_name }} https://github.com/${{ github.repository }}.git "$WORKSPACE_ROOT"
         ls "$WORKSPACE_ROOT"
         
         if [ x"${{ inputs.MATRIX_OS }}" == x"windows-2019" ]; then

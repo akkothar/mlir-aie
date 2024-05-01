@@ -2,8 +2,6 @@ name: Build wheels on/for Ryzen AI
 
 on:
   pull_request:
-    paths:
-      - '.github/workflows/buildRyzenWheels.yml'
   workflow_dispatch:
 
   schedule:
@@ -29,7 +27,7 @@ jobs:
   build-repo:
     name: Build and upload mlir_aie wheels
 
-    runs-on: amd7940hs
+    runs-on: amd8700g
 
     permissions:
       id-token: write
@@ -90,12 +88,13 @@ jobs:
           name: mlir_aie
 
       - name: Release current commit
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
         uses: ncipollo/release-action@v1.12.0
         with:
           artifacts: wheelhouse/repaired_wheel/mlir_aie*whl
           token: "${{ secrets.GITHUB_TOKEN }}"
-          tag: ${{ github.event_name == 'workflow_dispatch' && 'latest-wheels' || 'dev-wheels' }}
-          name: ${{ github.event_name == 'workflow_dispatch' && 'latest-wheels' || 'dev-wheels' }}
+          tag: 'latest-wheels'
+          name: 'latest-wheels'
           removeArtifacts: false
           allowUpdates: true
           replacesArtifacts: true
@@ -104,7 +103,9 @@ jobs:
   build-wheel:
     name: Build wheel
 
-    runs-on: amd7940hs
+    runs-on: amd8700g
+
+    needs: build-repo
 
     permissions:
       id-token: write
@@ -113,7 +114,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python_version: [ "3.8", "3.9", "3.10", "3.11", "3.12" ]
+        python_version: [
+#          "3.8", "3.9",
+          "3.10",
+#          "3.11", "3.12"
+        ]
 
     steps:
       - name: Get the project repository
@@ -164,7 +169,6 @@ jobs:
           export DATETIME=$(date +"%Y%m%d%H")
           
           cp python/requirements.txt utils/mlir_aie_wheels/python_bindings
-          cp python/aie-python-extras-req.txt utils/mlir_aie_wheels/python_bindings
           
           pushd utils/mlir_aie_wheels/python_bindings
           
@@ -175,19 +179,26 @@ jobs:
           
           auditwheel repair -w $WHEELHOUSE_DIR/repaired_wheel $WHEELHOUSE_DIR/aie_python_bindings-*whl --plat manylinux_2_35_x86_64
 
+      - uses: geekyeggo/delete-artifact@v4
+        if: github.event_name == 'pull_request'
+        with:
+          name: mlir_aie
+
       - name: Upload wheels
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
         uses: actions/upload-artifact@v3
         with:
           path: wheelhouse/repaired_wheel/aie_python_bindings-*.whl
           name: ryzen_ai_wheel
 
       - name: Release current commit
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
         uses: ncipollo/release-action@v1.12.0
         with:
           artifacts: wheelhouse/repaired_wheel/aie_python_bindings-*.whl
           token: "${{ secrets.GITHUB_TOKEN }}"
-          tag: ${{ (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && 'latest-wheels' || 'dev-wheels' }}
-          name: ${{ (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && 'latest-wheels' || 'dev-wheels' }}
+          tag: 'latest-wheels'
+          name: 'latest-wheels'
           removeArtifacts: false
           allowUpdates: true
           replacesArtifacts: true

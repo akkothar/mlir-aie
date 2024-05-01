@@ -23,6 +23,8 @@ from textwrap import dedent
 import time
 
 from aie.extras.runtime.passes import Pipeline
+
+# this is inside the aie-python-extras (shared) namespace package
 from aie.extras.util import find_ops
 import aiofiles
 import rich.progress as progress
@@ -33,9 +35,8 @@ from aie.dialects import aie as aiedialect
 from aie.ir import Context, Location, Module
 from aie.passmanager import PassManager
 
-INPUT_WITH_ADDRESSES_PIPELINE = (
+INPUT_WITH_SWITCHBOXES_PIPELINE = (
     Pipeline()
-    .convert_linalg_to_affine_loops()
     .lower_affine()
     .add_pass("aie-canonicalize-device")
     .Nested(
@@ -44,11 +45,11 @@ INPUT_WITH_ADDRESSES_PIPELINE = (
         .add_pass("aie-assign-lock-ids")
         .add_pass("aie-register-objectFifos")
         .add_pass("aie-objectFifo-stateful-transform")
+        .add_pass("aie-assign-bd-ids")
         .add_pass("aie-lower-cascade-flows")
         .add_pass("aie-lower-broadcast-packet")
         .add_pass("aie-create-packet-flows")
-        .add_pass("aie-lower-multicast")
-        .add_pass("aie-assign-buffer-addresses"),
+        .add_pass("aie-lower-multicast"),
     )
     .convert_scf_to_cf()
 )
@@ -87,7 +88,7 @@ AIE_LOWER_TO_LLVM = (
 CREATE_PATH_FINDER_FLOWS = Pipeline().Nested(
     "aie.device", Pipeline().add_pass("aie-create-pathfinder-flows")
 )
-DMA_TO_IPU = Pipeline().Nested("aie.device", Pipeline().add_pass("aie-dma-to-ipu"))
+DMA_TO_NPU = Pipeline().Nested("aie.device", Pipeline().add_pass("aie-dma-to-npu"))
 
 
 async def read_file_async(file_path: str) -> str:
@@ -240,9 +241,9 @@ def generate_cores_list(mlir_module_str):
         ]
 
 
-def emit_design_bif(root_path, has_cores=True):
+def emit_design_bif(root_path, has_cores=True, enable_cores=True):
     elf_file = f"file={root_path}/aie_cdo_elfs.bin" if has_cores else ""
-    enable_file = f"file={root_path}/aie_cdo_enable.bin" if has_cores else ""
+    enable_file = f"file={root_path}/aie_cdo_enable.bin" if enable_cores else ""
     return dedent(
         f"""\
         all:
@@ -580,7 +581,7 @@ class FlowRunner:
             self.prepend_tmp("aie_partition.json"),
         )
 
-        buffer_arg_names = ["in", "tmp", "out"]
+        buffer_arg_names = [f"bo{i}" for i in range(6)]
         await write_file_async(
             json.dumps(
                 emit_design_kernel_json(
@@ -657,7 +658,20 @@ class FlowRunner:
                     ],
                 )
 
-            cmd = ["clang++", "-std=c++11"]
+            if opts.link_against_hsa:
+                file_inc_cpp = self.prepend_tmp("aie_data_movement.cpp")
+                await self.do_call(
+                    task,
+                    [
+                        "aie-translate",
+                        "--aie-generate-hsa",
+                        file_physical,
+                        "-o",
+                        file_inc_cpp,
+                    ],
+                )
+
+            cmd = ["clang++", "-std=c++17"]
             if opts.host_target:
                 cmd += ["--target=" + opts.host_target]
                 if (
@@ -683,7 +697,14 @@ class FlowRunner:
                 # force using '/usr/lib,include/gcc'
                 if opts.host_target == "aarch64-linux-gnu":
                     cmd += [f"--gcc-toolchain={opts.sysroot}/usr"]
-
+                    # It looks like the G++ distribution is non standard, so add
+                    # an explicit handling of C++ library.
+                    # Perhaps related to https://discourse.llvm.org/t/add-gcc-install-dir-deprecate-gcc-toolchain-and-remove-gcc-install-prefix/65091/23
+                    cxx_include = glob.glob(f"{opts.sysroot}/usr/include/c++/*.*.*")[0]
+                    triple = os.path.basename(opts.sysroot)
+                    cmd += [f"-I{cxx_include}", f"-I{cxx_include}/{triple}"]
+                    gcc_lib = glob.glob(f"{opts.sysroot}/usr/lib/{triple}/*.*.*")[0]
+                    cmd += [f"-B{gcc_lib}", f"-L{gcc_lib}"]
             install_path = aie.compiler.aiecc.configure.install_path()
 
             # Setting everything up if linking against HSA
@@ -772,20 +793,26 @@ class FlowRunner:
 
         install_path = aie.compiler.aiecc.configure.install_path()
 
+        # Setting everything up if linking against HSA
+        if opts.link_against_hsa:
+            arch_name = opts.host_target.split("-")[0] + "-hsa"
+        else:
+            arch_name = opts.host_target.split("-")[0]
+
         runtime_simlib_path = os.path.join(
             install_path, "aie_runtime_lib", aie_target.upper(), "aiesim"
         )
         runtime_testlib_path = os.path.join(
             install_path,
             "runtime_lib",
-            opts.host_target.split("-")[0],
+            arch_name,
             "test_lib",
             "lib",
         )
         runtime_testlib_include_path = os.path.join(
             install_path,
             "runtime_lib",
-            opts.host_target.split("-")[0],
+            arch_name,
             "test_lib",
             "include",
         )
@@ -831,6 +858,7 @@ class FlowRunner:
             "-lxtlm",
             "-flto",
         ]
+
         processes = []
         processes.append(
             self.do_call(
@@ -957,28 +985,40 @@ class FlowRunner:
                 "[green] MLIR compilation:", total=1, command="1 Worker"
             )
 
-            file_with_addresses = self.prepend_tmp("input_with_addresses.mlir")
-            pass_pipeline = ",".join(
-                [
-                    "lower-affine",
-                    "aie-canonicalize-device",
-                    "aie.device(" + "aie-assign-lock-ids",
-                    "aie-register-objectFifos",
-                    "aie-objectFifo-stateful-transform",
-                    "aie-lower-cascade-flows",
-                    "aie-lower-broadcast-packet",
-                    "aie-create-packet-flows",
-                    "aie-lower-multicast",
-                    "aie-assign-buffer-addresses)",
-                    "convert-scf-to-cf",
-                ]
-            )
+            file_with_switchboxes = self.prepend_tmp("input_with_switchboxes.mlir")
+            pass_pipeline = INPUT_WITH_SWITCHBOXES_PIPELINE.materialize(module=True)
             run_passes(
-                "builtin.module(" + pass_pipeline + ")",
+                pass_pipeline,
                 self.mlir_module_str,
-                file_with_addresses,
+                file_with_switchboxes,
                 self.opts.verbose,
             )
+
+            file_with_addresses = self.prepend_tmp("input_with_addresses.mlir")
+            if opts.basic_alloc_scheme:
+                r = do_run(
+                    [
+                        "aie-opt",
+                        "--aie-assign-buffer-addresses=basic-alloc",
+                        file_with_switchboxes,
+                        "-o",
+                        file_with_addresses,
+                    ],
+                )
+            else:
+                r = do_run(
+                    [
+                        "aie-opt",
+                        "--aie-assign-buffer-addresses",
+                        file_with_switchboxes,
+                        "-o",
+                        file_with_addresses,
+                    ],
+                )
+            if r.returncode != 0:
+                print("Error encountered while assigning buffer addresses. Exiting...")
+                print(r.stderr, file=sys.stderr)
+                sys.exit(r.returncode)
 
             cores = generate_cores_list(await read_file_async(file_with_addresses))
             t = do_run(
@@ -998,14 +1038,14 @@ class FlowRunner:
                 exit(-3)
             aie_peano_target = aie_target.lower() + "-none-elf"
 
-            # Optionally generate insts.txt for IPU instruction stream
-            if opts.ipu or opts.only_ipu:
-                generated_insts_mlir = self.prepend_tmp("generated_ipu_insts.mlir")
+            # Optionally generate insts.txt for NPU instruction stream
+            if opts.npu or opts.only_npu:
+                generated_insts_mlir = self.prepend_tmp("generated_npu_insts.mlir")
                 await self.do_call(
                     progress_bar.task,
                     [
                         "aie-opt",
-                        "--aie-dma-to-ipu",
+                        "--aie-dma-to-npu",
                         file_with_addresses,
                         "-o",
                         generated_insts_mlir,
@@ -1015,13 +1055,13 @@ class FlowRunner:
                     progress_bar.task,
                     [
                         "aie-translate",
-                        "--aie-ipu-instgen",
+                        "--aie-npu-instgen",
                         generated_insts_mlir,
                         "-o",
                         opts.insts_name,
                     ],
                 )
-                if opts.only_ipu:
+                if opts.only_npu:
                     return
 
             chess_intrinsic_wrapper_ll_path = await self.prepare_for_chesshack(
