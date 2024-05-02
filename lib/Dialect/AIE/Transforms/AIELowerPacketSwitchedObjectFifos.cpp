@@ -183,7 +183,6 @@ struct AIELowerPacketSwitchedObjectFifosPass
   // features of the DMA.
   bool requiresDMAs(PacketSwitchedObjectFifoOp createOp, int &share_direction) {
     bool hasSharedMemory = false;
-    bool atLeastOneConsumerWantsTransform = false;
 
     if (createOp.getConsumerTiles().size() == 1) {
 
@@ -197,15 +196,7 @@ struct AIELowerPacketSwitchedObjectFifosPass
       }
     }
 
-    return !hasSharedMemory || atLeastOneConsumerWantsTransform;
-  }
-
-  /// Function to multiply all dimensions of a memref.
-  int64_t getMemrefTypeSize(MemRefType memref) {
-    int64_t size = 1;
-    for (auto dim : memref.getShape())
-      size *= dim;
-    return size;
+    return !hasSharedMemory;
   }
 
   PacketSwitchedObjectFifoOp
@@ -398,7 +389,7 @@ struct AIELowerPacketSwitchedObjectFifosPass
 
     auto fifo = op.getElemType().cast<AIEObjectFifoType>();
     auto elemType = fifo.getElementType().cast<MemRefType>();
-    int len = getMemrefTypeSize(elemType);
+    int len = elemType.getNumElements();
 
     PacketSwitchedObjectFifoOp target = op;
 
@@ -526,7 +517,7 @@ struct AIELowerPacketSwitchedObjectFifosPass
         succ = builder.createBlock(endBlock);
 
       MemRefType buffer = externalBuffersPerFifo[op][blockIndex].getType();
-      int len = getMemrefTypeSize(buffer);
+      int len = buffer.getNumElements();
       builder.setInsertionPointToStart(curr);
       createBdBlock<ExternalBufferOp>(builder, op, lockMode, acqNum, relNum,
                                       externalBuffersPerFifo[op][blockIndex],
@@ -548,7 +539,7 @@ struct AIELowerPacketSwitchedObjectFifosPass
     int offset = 0;
     auto fifo = op.getElemType().cast<AIEObjectFifoType>();
     auto elemType = fifo.getElementType().cast<MemRefType>();
-    int lenOut = getMemrefTypeSize(elemType);
+    int lenOut = elemType.getNumElements();
     int bytes = elemType.getElementTypeBitWidth() / 8;
     int acqNum = 1;
     int relNum = 1;
@@ -734,23 +725,6 @@ struct AIELowerPacketSwitchedObjectFifosPass
         if (regOp.getTile() == tile)
           return regOp.getExternalBuffers().size();
       }
-
-    int maxAcquire = 0;
-    for (auto coreOp : device.getOps<CoreOp>())
-      if (coreOp.getTile() == tile)
-        coreOp.walk([&](ObjectFifoAcquireOp acqOp) {
-          if (auto createOp = acqOp.getObjectFifo(); createOp == objFifo)
-            if (acqOp.acqNumber() > maxAcquire)
-              maxAcquire = acqOp.acqNumber();
-        });
-
-    if (maxAcquire > 0) {
-      if (maxAcquire == 1 && objFifo.size() == 1)
-        return 1;
-      return maxAcquire + 1;
-      // +1 because objectFifo size is always 1 bigger than maxAcquire to allow
-      // for prefetching: simplest case scenario is at least a ping-pong buffer
-    }
 
     return objFifo.size();
   }
