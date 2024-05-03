@@ -233,6 +233,15 @@ typedef struct DMAChannel {
   }
 } DMAChannel;
 
+typedef struct DMABDPacket {
+  int packet_type;
+  int packet_id;
+
+  bool operator==(const DMABDPacket &rhs) const {
+    return std::tie(packet_type, packet_id) == std::tie(rhs.packet_type, rhs.packet_id);
+  }
+} DMABDPacket;
+
 const AIETargetModel &getTargetModel(mlir::Operation *op);
 
 mlir::ParseResult

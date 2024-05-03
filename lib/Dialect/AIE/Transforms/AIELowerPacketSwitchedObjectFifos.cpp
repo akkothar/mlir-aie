@@ -25,6 +25,7 @@
 
 #include <numeric>
 #include <set>
+#include <optional>
 
 #define DEBUG_TYPE "aie-lower-packet-sw-objectFifos"
 
@@ -84,6 +85,11 @@ public:
         }
       }
     }
+  }
+
+  // TODO
+  getDMABDPacket(Value tile) {
+
   }
 
   /// Given an AIE tile, returns its next usable master channel.
@@ -320,9 +326,14 @@ struct AIELowerPacketSwitchedObjectFifosPass
   template <typename MyOp>
   void createBd(OpBuilder &builder, LockOp acqLock, int acqMode,
                 LockAction acqLockAction, LockOp relLock, int relMode,
-                MyOp buff, int offset, int len, Block *succ) {
+                MyOp buff, int offset, int len, Block *succ,
+                std::optional<DMABDPacket> bdPacket) {
     builder.create<UseLockOp>(builder.getUnknownLoc(), acqLock, acqLockAction,
                               acqMode);
+    if (bdPacket) {
+      builder.create<DMABDPACKETOp>(builder.getUnknownLoc(), bdPacket.packet_type,
+                                    bdPacket.packet_id);
+    }
     builder.create<DMABDOp>(builder.getUnknownLoc(), buff, offset, len);
     builder.create<UseLockOp>(builder.getUnknownLoc(), relLock,
                               LockAction::Release, relMode);
@@ -335,7 +346,8 @@ struct AIELowerPacketSwitchedObjectFifosPass
   template <typename MyOp>
   void createBdBlock(OpBuilder &builder, PacketSwitchedObjectFifoOp op, int lockMode,
                      int acqNum, int relNum, MyOp buff, int offset, int len,
-                     DMAChannelDir channelDir, size_t blockIndex, Block *succ) {
+                     DMAChannelDir channelDir, size_t blockIndex, Block *succ,
+                     std::optional<DMABDPacket> bdPacket) {
     LockOp acqLock;
     LockOp relLock;
     int acqMode = 1;
@@ -357,20 +369,24 @@ struct AIELowerPacketSwitchedObjectFifosPass
       relLock = channelDir == DMAChannelDir::S2MM ? locksPerFifo[op][1]
                                                   : locksPerFifo[op][0];
     }
-    createBd(builder, acqLock, acqMode, acqLockAction, relLock, relMode, buff,
-             offset, len, succ);
+    createBd(builder, acqLock, acqMode, acqLockAction, relLock, relMode,
+             buff, offset, len, succ, bdPacket);
   }
 
   /// Function that either calls createAIETileDMA(), createShimDMA() or
   /// createMemTileDMA() based on op tile row value.
   void createDMA(DeviceOp &device, OpBuilder &builder, PacketSwitchedObjectFifoOp op,
-                 DMAChannelDir channelDir, int channelIndex, int lockMode) {
+                 DMAChannelDir channelDir, int lockMode,
+                 std::optional<DMABDPacket> bdPacket) {
     if (op.getProducerTileOp().isShimTile()) {
-      createShimDMA(device, builder, op, channelDir, channelIndex, lockMode);
+      createShimDMA(device, builder, op, channelDir, channelIndex, lockMode,
+                    bdPacket);
     } else if (op.getProducerTileOp().isMemTile()) {
-      createMemTileDMA(device, builder, op, channelDir, channelIndex, lockMode);
+      createMemTileDMA(device, builder, op, channelDir, channelIndex, lockMode,
+                       bdPacket);
     } else {
-      createAIETileDMA(device, builder, op, channelDir, channelIndex, lockMode);
+      createAIETileDMA(device, builder, op, channelDir, channelIndex, lockMode,
+                       bdPacket);
     }
   }
 
@@ -378,7 +394,8 @@ struct AIELowerPacketSwitchedObjectFifosPass
   /// It uses creatBdBlock(), see there for lockMode input.
   void createAIETileDMA(DeviceOp &device, OpBuilder &builder,
                         PacketSwitchedObjectFifoOp op, DMAChannelDir channelDir,
-                        int channelIndex, int lockMode) {
+                        int channelIndex, int lockMode,
+                        std::optional<DMABDPacket> bdPacket) {
     size_t numBlocks = op.size();
     if (numBlocks == 0)
       return;
@@ -446,7 +463,7 @@ struct AIELowerPacketSwitchedObjectFifosPass
       builder.setInsertionPointToStart(curr);
       createBdBlock<BufferOp>(builder, target, lockMode, acqNum, relNum,
                               buffersPerFifo[target][blockIndex], offset, len,
-                              channelDir, blockIndex, succ);
+                              channelDir, blockIndex, succ, bdPacket);
       curr = succ;
       blockIndex++;
     }
@@ -456,7 +473,8 @@ struct AIELowerPacketSwitchedObjectFifosPass
   /// It uses creatBdBlock(), see there for lockMode input.
   void createShimDMA(DeviceOp &device, OpBuilder &builder,
                      PacketSwitchedObjectFifoOp op, DMAChannelDir channelDir,
-                     int channelIndex, int lockMode) {
+                     int channelIndex, int lockMode,
+                     std::optional<DMABDPacket> bdPacket) {
     size_t numBlocks = externalBuffersPerFifo[op].size();
     if (numBlocks == 0)
       return;
@@ -520,8 +538,10 @@ struct AIELowerPacketSwitchedObjectFifosPass
       int len = buffer.getNumElements();
       builder.setInsertionPointToStart(curr);
       createBdBlock<ExternalBufferOp>(builder, op, lockMode, acqNum, relNum,
+                                      packet_type, packet_id,
                                       externalBuffersPerFifo[op][blockIndex],
-                                      offset, len, channelDir, blockIndex, succ);
+                                      offset, len, channelDir, blockIndex, succ,
+                                      bdPacket);
       curr = succ;
       blockIndex++;
     }
@@ -531,7 +551,8 @@ struct AIELowerPacketSwitchedObjectFifosPass
   /// It uses creatBdBlock(), see there for lockMode input.
   void createMemTileDMA(DeviceOp &device, OpBuilder &builder,
                         PacketSwitchedObjectFifoOp op, DMAChannelDir channelDir,
-                        int channelIndex, int lockMode) {
+                        int channelIndex, int lockMode,
+                        std::optional<DMABDPacket> bdPacket) {
     size_t numBlocks = op.size();
     if (numBlocks == 0)
       return;
@@ -600,7 +621,8 @@ struct AIELowerPacketSwitchedObjectFifosPass
       builder.setInsertionPointToStart(curr);
       createBdBlock<BufferOp>(builder, target, lockMode, acqNum, relNum,
                               buffersPerFifo[target][blockIndex], offset,
-                              lenOut, channelDir, blockIndex, succ);
+                              lenOut, channelDir, blockIndex, succ,
+                              bdPacket);
       curr = succ;
       blockIndex++;
     }
@@ -863,8 +885,9 @@ struct AIELowerPacketSwitchedObjectFifosPass
       // create producer tile DMA
       DMAChannel producerChan =
           dmaAnalysis.getMasterDMAChannel(producer.getProducerTile());
+      DMABDPacket bdPacket = dmaAnalysis.getDMABDPacket(producer.getProducerTile());
       createDMA(device, builder, producer, producerChan.direction,
-                producerChan.channel, 0);
+                producerChan.channel, 0, {bdPacket});
       // generate objectFifo allocation info
       builder.setInsertionPoint(&device.getBody()->back());
       if (producer.getProducerTileOp().isShimTile())
