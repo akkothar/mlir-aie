@@ -69,6 +69,7 @@ public:
 class DMAChannelAnalysis {
   DenseMap<Value, int> masterChannelsPerTile;
   DenseMap<Value, int> slaveChannelsPerTile;
+  int packetId;
 
 public:
   DMAChannelAnalysis(DeviceOp &device) {
@@ -85,11 +86,14 @@ public:
         }
       }
     }
+    packetId = 0; // TODO: check if other IDs have already been used
   }
 
-  // TODO
-  getDMABDPacket(Value tile) {
-
+  // Returns a DMABDPacket with the next available unique packet ID.
+  DMABDPacket getDMABDPacket() {
+    int lastPacketId = packetId;
+    packetId++;
+    return {lastPacketId, lastPacketId};
   }
 
   /// Given an AIE tile, returns its next usable master channel.
@@ -301,7 +305,8 @@ struct AIELowerPacketSwitchedObjectFifosPass
             builder.getUnknownLoc(), elemType, creation_tile,
             builder.getStringAttr(op.name().str() + "_buff_" +
                                   std::to_string(of_elem_index)),
-            /*address*/ nullptr, /*initial_value*/ nullptr);
+            /*address*/ nullptr, /*initial_value*/ nullptr,
+            /*mem_bank*/ nullptr);
         buffers.push_back(buff);
       }
       of_elem_index++;
@@ -331,8 +336,8 @@ struct AIELowerPacketSwitchedObjectFifosPass
     builder.create<UseLockOp>(builder.getUnknownLoc(), acqLock, acqLockAction,
                               acqMode);
     if (bdPacket) {
-      builder.create<DMABDPACKETOp>(builder.getUnknownLoc(), bdPacket.packet_type,
-                                    bdPacket.packet_id);
+      builder.create<DMABDPACKETOp>(builder.getUnknownLoc(), bdPacket.value().packet_type,
+                                    bdPacket.value().packet_id);
     }
     builder.create<DMABDOp>(builder.getUnknownLoc(), buff, offset, len);
     builder.create<UseLockOp>(builder.getUnknownLoc(), relLock,
@@ -376,7 +381,7 @@ struct AIELowerPacketSwitchedObjectFifosPass
   /// Function that either calls createAIETileDMA(), createShimDMA() or
   /// createMemTileDMA() based on op tile row value.
   void createDMA(DeviceOp &device, OpBuilder &builder, PacketSwitchedObjectFifoOp op,
-                 DMAChannelDir channelDir, int lockMode,
+                 DMAChannelDir channelDir, int channelIndex, int lockMode,
                  std::optional<DMABDPacket> bdPacket) {
     if (op.getProducerTileOp().isShimTile()) {
       createShimDMA(device, builder, op, channelDir, channelIndex, lockMode,
@@ -538,7 +543,6 @@ struct AIELowerPacketSwitchedObjectFifosPass
       int len = buffer.getNumElements();
       builder.setInsertionPointToStart(curr);
       createBdBlock<ExternalBufferOp>(builder, op, lockMode, acqNum, relNum,
-                                      packet_type, packet_id,
                                       externalBuffersPerFifo[op][blockIndex],
                                       offset, len, channelDir, blockIndex, succ,
                                       bdPacket);
@@ -561,7 +565,6 @@ struct AIELowerPacketSwitchedObjectFifosPass
     auto fifo = op.getElemType().cast<AIEObjectFifoType>();
     auto elemType = fifo.getElementType().cast<MemRefType>();
     int lenOut = elemType.getNumElements();
-    int bytes = elemType.getElementTypeBitWidth() / 8;
     int acqNum = 1;
     int relNum = 1;
 
@@ -885,7 +888,7 @@ struct AIELowerPacketSwitchedObjectFifosPass
       // create producer tile DMA
       DMAChannel producerChan =
           dmaAnalysis.getMasterDMAChannel(producer.getProducerTile());
-      DMABDPacket bdPacket = dmaAnalysis.getDMABDPacket(producer.getProducerTile());
+      DMABDPacket bdPacket = dmaAnalysis.getDMABDPacket();
       createDMA(device, builder, producer, producerChan.direction,
                 producerChan.channel, 0, {bdPacket});
       // generate objectFifo allocation info
@@ -896,12 +899,27 @@ struct AIELowerPacketSwitchedObjectFifosPass
             producer.getProducerTileOp().colIndex(), producerChan.direction,
             producerChan.channel);
 
+      // create packet flow
+      builder.setInsertionPointAfter(producer);
+      auto packetflow = builder.create<PacketFlowOp>(builder.getUnknownLoc(), builder.getIntegerAttr(builder.getI8Type(), bdPacket.packet_id), nullptr);
+      {
+        OpBuilder::InsertionGuard g(builder);
+        builder.setInsertionPointToStart(&packetflow.getRegion().emplaceBlock());
+        builder.create<EndOp>(builder.getUnknownLoc());
+      }
+
       for (auto consumer : consumers) {
-        // create consumer tile DMA
         DMAChannel consumerChan =
             dmaAnalysis.getSlaveDMAChannel(consumer.getProducerTile());
+        
+        builder.setInsertionPointToStart(&packetflow.getPorts().front());
+        builder.create<PacketDestOp>(builder.getUnknownLoc(),
+                                     consumer.getProducerTile(),
+                                     WireBundle::DMA, consumerChan.channel);
+
+        // create consumer tile DMA
         createDMA(device, builder, consumer, consumerChan.direction,
-                  consumerChan.channel, 1);
+                  consumerChan.channel, 1, {});
         // generate objectFifo allocation info
         builder.setInsertionPoint(&device.getBody()->back());
         if (consumer.getProducerTileOp().isShimTile())
@@ -909,14 +927,12 @@ struct AIELowerPacketSwitchedObjectFifosPass
               builder, ctx, SymbolRefAttr::get(ctx, producer.getName()),
               consumer.getProducerTileOp().colIndex(), consumerChan.direction,
               consumerChan.channel);
-
-        // create flow
-        builder.setInsertionPointAfter(producer);
-        builder.create<FlowOp>(builder.getUnknownLoc(),
-                               producer.getProducerTile(), WireBundle::DMA,
-                               producerChan.channel, consumer.getProducerTile(),
-                               WireBundle::DMA, consumerChan.channel);
       }
+
+      builder.setInsertionPointToStart(&packetflow.getPorts().front());
+      builder.create<PacketSourceOp>(builder.getUnknownLoc(),
+                                     producer.getProducerTile(),
+                                     WireBundle::DMA, producerChan.channel);
     }
 
     //===------------------------------------------------------------------===//
