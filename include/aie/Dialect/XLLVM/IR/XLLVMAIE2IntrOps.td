@@ -272,4 +272,43 @@ def VectorExtractElem32I512IntrOp :
                    I32:$idx,
                    I32:$sign)>;
 
+// ----- MAX ELEMENT -----
+class EnumeratedType<Type ty, int idx> {
+    Type type = ty;
+    int index = idx;
+}
+
+class EnumerateTypeListFrom<list<Type> tlist, int from = 0> {
+    list<EnumeratedType> sequence =
+        !if(!empty(tlist), [],
+            !listconcat(
+                    [EnumeratedType<!head(tlist), from>],
+                    EnumerateTypeListFrom<!tail(tlist), !add(from, 1)>.sequence
+                    ));
+}
+
+class LLVM_StructOf<list<Type> structTypes> :
+    Type<
+        And<[LLVM_AnyStruct.predicate,
+            CPred<"cast<::mlir::LLVM::LLVMStructType>($_self).getBody().size() == " # !size(structTypes)>,
+            And<!foreach(enumTy, EnumerateTypeListFrom<structTypes>.sequence,
+                SubstLeaves<"$_self",
+                    "cast<::mlir::LLVM::LLVMStructType>($_self).getBody()[" # enumTy.index # "]",
+                    enumTy.type.predicate>
+                )
+            >
+        ]>,
+        "an LLVM struct of {" # !interleave(!foreach(ty, structTypes, ty.summary), "; ") # "}"
+    >;
+
+def VectorMaxLtBf16IntrOp :
+    AIEVec2_IntrOp<"vmax.ltbf16",
+        [TypeIs<"res",
+            LLVM_StructOf<[
+                VectorOfLengthAndType<[32], [BF16]>,
+                I32]>
+        >], /*numResults=*/2>,
+    Arguments<(ins VectorOfLengthAndType<[32], [BF16]>:$lhs,
+                   VectorOfLengthAndType<[32], [BF16]>:$rhs)>;
+
 #endif // AIE_DIALECT_XLLVM_IR_XLLVMAIE2INTROPS_TD
