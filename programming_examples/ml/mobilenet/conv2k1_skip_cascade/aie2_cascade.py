@@ -20,7 +20,7 @@ bneck_13_OutC1 = 960 // 4
 
 bneck_13_InW2 = 7
 bneck_13_InH2 = 7
-bneck_13_OutC2 = bneck_13_OutC1
+bneck_13_OutC2 = 8
 
 bneck_13_InW3 = 7
 bneck_13_InH3 = 7
@@ -189,15 +189,15 @@ def mobilenetBottleneckB():
             ComputeTile05 = tile(0, 5)
             # ComputeTile15 = tile(1, 5)
 
-
+            cascade_flow(ComputeTile04, ComputeTile05)
             # AIE-array data movement with object fifos
             # ************************ bneck13 ************************
             # Input
             inOF_act_L3L2 = object_fifo(
                 "inOF_act_L3L2",
                 ShimTile00,
-                [ComputeTile04,ComputeTile05, MemTile01],
-                [2, 2, 2, 2],
+                [ComputeTile04,ComputeTile05],
+                [2, 2, 2],
                 ty_bneck_13_layer3_in,
             )
             # OF_bneck_13_skip = object_fifo(
@@ -496,8 +496,8 @@ def mobilenetBottleneckB():
             def sequence(inputFromL3, weightsFromL3, outputToL3):
                 # NpuWriteRTPOp("rtp02", col=0, row=2, index=0, value=9)
                 # NpuWriteRTPOp("rtp03", col=0, row=3, index=0, value=8)
-                NpuWriteRTPOp("rtp05", col=0, row=5, index=0, value=11)
-                NpuWriteRTPOp("rtp05", col=0, row=5, index=1, value=0)
+                NpuWriteRTPOp("rtp05", col=0, row=5, index=0, value=8)
+                NpuWriteRTPOp("rtp05", col=0, row=5, index=1, value=1)
                 
                 npu_dma_memcpy_nd(
                     metadata="inOF_act_L3L2",

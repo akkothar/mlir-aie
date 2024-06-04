@@ -33,7 +33,8 @@ bneck_13_OutC1 = 960 // 4
 
 bneck_13_InW2 = 7
 bneck_13_InH2 = 7
-bneck_13_OutC2 = bneck_13_OutC1
+# bneck_13_OutC2 = bneck_13_OutC1
+bneck_13_OutC2 = 8
 
 bneck_13_InW3 = 7
 bneck_13_InH3 = 7
@@ -62,7 +63,7 @@ def main(opts):
     # ------------------------------------------------------
     # Configure this to match your design's buffer size
     # ------------------------------------------------------
-    dtype_in = np.dtype("int8")
+    dtype_in = np.dtype("uint8")
     dtype_wts = np.dtype("int8")
     dtype_out = np.dtype("int8")
 
@@ -94,7 +95,7 @@ def main(opts):
         def __init__(self, in_planes=16, bn13_expand=16,bn13_project=16,bn14_expand=16,bn11_project=16,bn12_expand=16,bn12_project=16):
             super(QuantBottleneck, self).__init__()
             self.quant_id_1 = QuantIdentity(
-                act_quant=Int8ActPerTensorFixedPoint,
+                act_quant=Uint8ActPerTensorFixedPoint,
                 bit_width=8,
                 return_quant_tensor=True,
             )
@@ -156,9 +157,9 @@ def main(opts):
             # out = self.bn13_quant_conv2(out)
             # out = self.bn13_quant_relu2(out)
             out = self.bn13_quant_conv3(out_q)
-            out = self.quant_id_1(out)
+            # out = self.quant_id_1(out)
             # out=out+out_q
-            # out = self.bn13_add(out)
+            out = self.bn13_add(out)
             return out
 
     quant_bottleneck_model = QuantBottleneck(in_planes=bneck_13_InC1, bn13_expand=bneck_13_OutC2,bn13_project=bneck_13_OutC3)
