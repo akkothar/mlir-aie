@@ -12,7 +12,7 @@ include ${srcdir}/../../../makefile-common
 mlirFileName = aie2_cascade
 VPATH := ${srcdir}/../../../../aie_kernels/aie2
 
-all: build/bn13_conv2dk1_skip_put.o build/bn13_conv2dk1_skip_get.o build/final.xclbin
+all: build/conv2dk1_skip_put.o build/conv2dk1_skip_get.o build/final.xclbin
 
 build/${mlirFileName}.mlir: ${srcdir}/${mlirFileName}.py
 	mkdir -p ${@D}
@@ -21,13 +21,13 @@ build/${mlirFileName}.mlir: ${srcdir}/${mlirFileName}.py
 insts.txt: build/${mlirFileName}.mlir
 	aiecc.py -v --aie-only-generate-npu --npu-insts-name=$@ $<
 
-build/bn13_conv2dk1_skip_put.o: bn_conv2dk1_skip.cc
+build/conv2dk1_skip_put.o: bn_conv2dk1_skip.cc
 	xchesscc -d ${CHESSCC2_FLAGS} -DPUT -c $< -o $@
 
-build/bn13_conv2dk1_skip_get.o: bn_conv2dk1_skip.cc
+build/conv2dk1_skip_get.o: bn_conv2dk1_skip.cc
 	xchesscc -d ${CHESSCC2_FLAGS} -DGET -c $< -o $@
 
-build/final.xclbin: build/${mlirFileName}.mlir build/bn13_conv2dk1_skip_put.o  build/bn13_conv2dk1_skip_get.o 
+build/final.xclbin: build/${mlirFileName}.mlir build/conv2dk1_skip_put.o  build/conv2dk1_skip_get.o 
 	cd build && aiecc.py -v --aie-generate-cdo --aie-generate-npu --no-compile-host \
 		--basic-alloc-scheme \
 		--xclbin-name=${@F} --npu-insts-name=insts.txt ${<F}
