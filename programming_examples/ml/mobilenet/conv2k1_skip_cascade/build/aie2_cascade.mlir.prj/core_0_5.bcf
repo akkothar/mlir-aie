@@ -1,0 +1,54 @@
+_entry_point _main_init
+_symbol core_0_5 _after _main_init
+_symbol _main_init 0
+_reserved DMb 0x00000 0x40000 // Don't put data in code memory
+_stack DM_stack 0x70000 0x400 // stack for core
+
+// mapping neighbors tile memory
+// south -------------------------------------------------
+_reserved DMb 0x40000 0x10000  // Don't allocate variables in south neighbor
+
+_symbol OF_bn_12_buff_0 0x40C00 448
+_extern OF_bn_12_buff_0
+_reserved DMb 0x40C00 448
+
+_symbol OF_bn_12_buff_1 0x40DC0 448
+_extern OF_bn_12_buff_1
+_reserved DMb 0x40DC0 448
+
+_symbol OF_wts_memtile_get_cons_buff_0 0x40400 2048
+_extern OF_wts_memtile_get_cons_buff_0
+_reserved DMb 0x40400 2048
+
+_symbol inOF_act_L3L2_1_cons_buff_0 0x40F80 448
+_extern inOF_act_L3L2_1_cons_buff_0
+_reserved DMb 0x40F80 448
+
+_symbol inOF_act_L3L2_1_cons_buff_1 0x41140 448
+_extern inOF_act_L3L2_1_cons_buff_1
+_reserved DMb 0x41140 448
+
+_symbol rtp04 0x41300 64
+_extern rtp04
+_reserved DMb 0x41300 64
+
+_reserved DMb 0x50000 0x10000  // No tile with memory exists to the west.
+_reserved DMb 0x60000 0x10000  // No tile with memory exists to the north.
+// east -------------------------------------------------
+_symbol OF_wts_memtile_put_cons_buff_0 0x70400 2048
+_extern OF_wts_memtile_put_cons_buff_0
+_reserved DMb 0x70400 2048
+
+_symbol inOF_act_L3L2_0_cons_buff_0 0x70C00 448
+_extern inOF_act_L3L2_0_cons_buff_0
+_reserved DMb 0x70C00 448
+
+_symbol inOF_act_L3L2_0_cons_buff_1 0x70DC0 448
+_extern inOF_act_L3L2_0_cons_buff_1
+_reserved DMb 0x70DC0 448
+
+// end mapping neighbors tile memory
+
+_reserved DMb 0x80000 0x80000 // And everything else the core can't see
+_include _file conv2dk1_skip_put.o
+_resolve _main core_0_5
