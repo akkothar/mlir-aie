@@ -57,9 +57,9 @@ def main(opts):
     # ------------------------------------------------------
     # Configure this to match your design's buffer size
     # ------------------------------------------------------
-    dtype_in = np.dtype("uint8")
+    dtype_in = np.dtype("int8")
     dtype_wts = np.dtype("int8")
-    dtype_out = np.dtype("int8")
+    dtype_out = np.dtype("uint8")
 
     shape_total_wts = (wts_size, 1)
     shape_in_act = (InH2, InC_vec, InW2, vectorSize)  #'YCXC8' , 'CYX'
@@ -89,7 +89,7 @@ def main(opts):
         def __init__(self, in_planes=16, expand=16,project=16,bn14_expand=16,bn11_project=16,bn12_expand=16,bn12_project=16):
             super(QuantBottleneck, self).__init__()
             self.quant_id_1 = QuantIdentity(
-                act_quant=Uint8ActPerTensorFixedPoint,
+                act_quant=Int8ActPerTensorFixedPoint,
                 bit_width=8,
                 return_quant_tensor=True,
             )
@@ -104,12 +104,12 @@ def main(opts):
                 weight_quant=Int8WeightPerTensorFixedPoint,
                 return_quant_tensor=True,
             )
-            
-            self.add = QuantIdentity(
-                act_quant=Int8ActPerTensorFixedPoint,
+            self.quant_relu1 = QuantReLU(
+                act_quant=Uint8ActPerTensorFixedPoint,
                 bit_width=8,
                 return_quant_tensor=True,
             )
+            
 
         def forward(self, x):
             out_q = self.quant_id_1(x)
@@ -120,7 +120,7 @@ def main(opts):
             out = self.quant_conv3(out_q)
             # out = self.quant_id_1(out)
             # out=out+out_q
-            out = self.add(out)
+            out = self.quant_relu1(out)
             return out
 
     class QuantBottleneck_HALF(nn.Module):
@@ -178,10 +178,10 @@ def main(opts):
 
  
     inp_scale1= quant_bottleneck_model.quant_id_1.quant_act_scale()
-    skip_add = quant_bottleneck_model.add.quant_act_scale()
+    quant_relu1 = quant_bottleneck_model.quant_relu1.quant_act_scale()
     weight_scale3 = quant_bottleneck_model.quant_conv3.quant_weight_scale()
     combined_scale3 = -torch.log2(
-        inp_scale1 * weight_scale3/skip_add
+        inp_scale1 * weight_scale3/quant_relu1
     )   
     
     print("********************BN13*******************************")
