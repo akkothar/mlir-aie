@@ -43,7 +43,7 @@ build/bn11_conv2dk3_dw.o: bn_conv2dk3_dw.cc
 
 build/bn_conv2dk1_skip.o: bn_conv2dk1_skip.cc
 	mkdir -p ${@D}
-	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DSCALAR  -c $< -o ${@F}
+	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DREGULAR  -c $< -o ${@F}
 # bn12
 build/bn12_conv2dk1_fused_relu.o: bn_conv2dk1_relu.cc
 	xchesscc -d ${CHESSCC2_FLAGS} -DSCALAR -DBN12 -DINT8_ACT -c $< -o $@
