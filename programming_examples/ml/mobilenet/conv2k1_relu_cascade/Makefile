@@ -21,8 +21,8 @@ build/${mlirFileName}.mlir: ${srcdir}/${mlirFileName}.py
 insts.txt: build/${mlirFileName}.mlir
 	aiecc.py -v --aie-only-generate-npu --npu-insts-name=$@ $<
 
-build/conv2dk1_put.o: bn_conv2dk1_relu.cc
-	xchesscc -d ${CHESSCC2_FLAGS} -DPUT -c $< -o $@
+build/conv2dk1_put.o: bn_conv2dk1_i8.cc
+	xchesscc -d ${CHESSCC2_FLAGS} -DPUT_I8_CAS -c $< -o $@
 
 build/conv2dk1_get.o: bn_conv2dk1_relu.cc
 	xchesscc -d ${CHESSCC2_FLAGS} -DGET -c $< -o $@

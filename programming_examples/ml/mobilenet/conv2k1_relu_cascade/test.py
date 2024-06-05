@@ -113,13 +113,7 @@ def main(opts):
 
         def forward(self, x):
             out_q = self.quant_id_1(x)
-            # out = self.quant_conv1(out_q)
-            # out = self.quant_relu1(out)
-            # out = self.quant_conv2(out)
-            # out = self.quant_relu2(out)
             out = self.quant_conv3(out_q)
-            # out = self.quant_id_1(out)
-            # out=out+out_q
             out = self.quant_relu1(out)
             return out
 

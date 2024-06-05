@@ -80,11 +80,10 @@ def mobilenetBottleneckB():
                     int32_ty,
                     int32_ty,
                     int32_ty,
-                    int32_ty,
                 ],
             )
             conv2dk1_put = external_func(
-                "conv2dk1_i8_ui8_put",
+                "conv2dk1_i8_put",
                 inputs=[
                     ty_in,
                     ty_wts,
@@ -192,7 +191,7 @@ def mobilenetBottleneckB():
                     elemWts = OF_wts_memtile_get.acquire(ObjectFifoPort.Consume, 1)
 
                     scale = memref.load(rtp04, [0])
-                    skipScale = memref.load(rtp04, [1])
+
                     # scale = memref.load(rtpComputeTile02, [0])
 
                     for _ in for_(InH2):
@@ -209,7 +208,6 @@ def mobilenetBottleneckB():
                                 InC, #input_channels
                                 OutC,
                                 scale,
-                                skipScale,
                             ],
                         )
 
