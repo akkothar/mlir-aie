@@ -162,19 +162,15 @@ def main(opts):
             return out
 
     quant_bottleneck_model = QuantBottleneck(expand=OutC2,project=OutC3)
-    quant_bottleneck_model_HALF = QuantBottleneck_HALF(expand=OutC2//2,project=OutC3)
-
+    
     quant_bottleneck_model.eval()
-    quant_bottleneck_model_HALF.eval()
+    
     
     q_bottleneck_out = quant_bottleneck_model(input)
     golden_output = q_bottleneck_out.int(float_datatype=True).data.numpy().astype(dtype_out)
-    # print("Golden::Brevitas::", golden_output)
+    print("Golden::Brevitas::", golden_output)
     print(input.shape)
-    q_bottleneck_out_HALF = quant_bottleneck_model_HALF(input[:,0:32,:,:])
-    golden_output_HALF = q_bottleneck_out_HALF.int(float_datatype=True).data.numpy().astype(dtype_out)
-    print("Golden_HALF::Brevitas::", golden_output_HALF)
-
+  
     # extract int input
     q_inp = quant_bottleneck_model.quant_id_1(input)
     int_inp = q_inp.int(float_datatype=True)
@@ -192,16 +188,22 @@ def main(opts):
     print("combined_scale after conv1x1:", combined_scale3.item())
     print("**************************************************")
 
-    inp_scale1_HALF= quant_bottleneck_model_HALF.quant_id_1.quant_act_scale()
-    skip_add_HALF = quant_bottleneck_model_HALF.add.quant_act_scale()
-    weight_scale3_HALF = quant_bottleneck_model_HALF.quant_conv3.quant_weight_scale()
-    combined_scale3_HALF = -torch.log2(
-        inp_scale1_HALF * weight_scale3_HALF/skip_add_HALF
-    )   
+    quant_bottleneck_model_HALF = QuantBottleneck_HALF(expand=OutC2//2,project=OutC3)
+    quant_bottleneck_model_HALF.eval()
+    # q_bottleneck_out_HALF = quant_bottleneck_model_HALF(input[:,0:32,:,:])
+    # golden_output_HALF = q_bottleneck_out_HALF.int(float_datatype=True).data.numpy().astype(dtype_out)
+    # print("Golden_HALF::Brevitas::", golden_output_HALF)
+
+    # inp_scale1_HALF= quant_bottleneck_model_HALF.quant_id_1.quant_act_scale()
+    # skip_add_HALF = quant_bottleneck_model_HALF.add.quant_act_scale()
+    # weight_scale3_HALF = quant_bottleneck_model_HALF.quant_conv3.quant_weight_scale()
+    # combined_scale3_HALF = -torch.log2(
+    #     inp_scale1_HALF * weight_scale3_HALF/skip_add_HALF
+    # )   
     
-    print("********************BN13*******************************")
-    print("combined_scale_HALF after conv1x1:", combined_scale3_HALF.item())
-    print("*************************************************")
+    # print("********************BN13*******************************")
+    # print("combined_scale_HALF after conv1x1:", combined_scale3_HALF.item())
+    # print("*************************************************")
 
     # print("combined_scale after conv1x1:", ( block_0_relu_2 * block_0_weight_scale3).item())
     # ------------------------------------------------------
@@ -215,9 +217,11 @@ def main(opts):
     int_weight_3_HALF = quant_bottleneck_model_HALF.quant_conv3.quant_weight().int(
         float_datatype=True
     )
+
     int_weight_3_put=int_weight_3[:,0:32,:,:]
     int_weight_3_get=int_weight_3[:,32:64,:,:]
     print(int_weight_3.shape)
+    print(int_weight_3_HALF.shape)
     print(int_weight_3[:,0:32,:,:].shape)
     print(int_weight_3[:,32:64,:,:].shape)
 
@@ -251,10 +255,10 @@ def main(opts):
         int_weight_3_get.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
     )
 
-    wts3_put_HALF = ds.reorder_mat(
-        int_weight_3_HALF.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
-    )
-    total_wts = np.concatenate((wts3_put_HALF,wts3_get), axis=None)
+    # wts3_put_HALF = ds.reorder_mat(
+    #     int_weight_3_HALF.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
+    # )
+    total_wts = np.concatenate((wts3_put,wts3_get), axis=None)
 
     total_wts.tofile(log_folder + "/after_weights_mem_fmt_final.txt", sep=",", format="%d")
     print(total_wts.shape)
@@ -286,7 +290,7 @@ def main(opts):
 
     if np.allclose(
         ofm_mem_fmt_out,
-        golden_output_HALF,
+        golden_output,
         rtol=0,
         atol=1,
     ):
