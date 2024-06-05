@@ -13,8 +13,8 @@ from aie.dialects.scf import *
 from aie.extras.dialects.ext import memref, arith
 from aie.extras.context import mlir_mod_ctx
 
-tensorInW = 7
-tensorInH = 7
+tensorInW = 8
+tensorInH = 8
 tensorInC = 16
 
 tensorL2InC = tensorInC
@@ -91,7 +91,7 @@ def conv2dk1():
             of_inOF_act_L3L2 = object_fifo(
                 "inOF_act_L3L2", ShimTile, MemTile, 2, tensorLayer2In_ty
             )
-            of_act_2_3_5 = object_fifo("act_2_3_5", MemTile, ComputeTile2, 2, tensorLayer2In_ty)
+            of_act_2_3_5 = object_fifo("act_2_3_5", MemTile, ComputeTile2, 4, tensorLayer2In_ty)
             object_fifo_link(of_inOF_act_L3L2, of_act_2_3_5)
 
             # wts

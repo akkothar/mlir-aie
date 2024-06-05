@@ -29,7 +29,7 @@ tensorInW = 8
 tensorInH = 8
 tensorInC = 16
 kdim=3
-stride=2
+stride=1
 padding=1
 
 tensorOutW = math.floor((tensorInW-kdim+2*padding)/stride)+1
@@ -97,7 +97,7 @@ def main(opts):
                 in_planes,
                 planes,
                 kernel_size=3,
-                stride=2,
+                stride=1,
                 padding=1,
                 padding_mode="zeros",
                 bit_width=8,
@@ -124,7 +124,7 @@ def main(opts):
     int_weight = quant_bottleneck_model.conv1.quant_weight().int(float_datatype=True)
     q_bottleneck_out = quant_bottleneck_model(input)
     golden_output = q_bottleneck_out.int(float_datatype=True).data.numpy().astype(dtype_out)
-    # print("Golden::Brevitas::", golden_output)
+    print("Golden::Brevitas::", golden_output)
     q_inp = quant_bottleneck_model.quant_id_1(input)
     int_inp = q_inp.int(float_datatype=True)
     # print(input.shape)
@@ -177,7 +177,7 @@ def main(opts):
         log_folder + "/after_ofm_mem_fmt_final.txt", sep=",", format="%d"
     )
     ofm_mem_fmt_out = torch.from_numpy(ofm_mem_fmt).unsqueeze(0)
-    # print(ofm_mem_fmt_out)
+    print(ofm_mem_fmt_out)
     # ------------------------------------------------------
     # Compare the AIE output and the golden reference
     # ------------------------------------------------------

@@ -39,7 +39,7 @@ def main(opts):
     # ------------------------------------------------------
     # Configure this to match your design's buffer size
     # ------------------------------------------------------
-    dtype_in = np.dtype("int8")
+    dtype_in = np.dtype("uint8")
     dtype_wts = np.dtype("int8")
     dtype_out = np.dtype("int8")
 
