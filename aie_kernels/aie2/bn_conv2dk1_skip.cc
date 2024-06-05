@@ -27,7 +27,7 @@
 const int32_t MIN = 128;
 const int32_t MAX = 127;
 const int32_t UMAX = 255;
-
+const int32_t MAX_VALUES = 16;
 //*****************************************************************************
 // conv2d 1x1 skip - scalar
 // act: uint8, wts: int8, skip: int8, out: int8
@@ -94,36 +94,38 @@ void conv2dk1_skip_ui8_i8_scalar_cascade_put(
 
   int x, ic, ic2, oc, oc8, ic8, ic8b;
 
-  #define MAX_VALUES 32
-
-  v32int16 v32vec_partial = undef_v32int16();
-  v32acc32 v32acc_partial = undef_v32acc32();
+  v16int32 v16vec_partial = undef_v16int32();
+  v16acc64 v16acc_partial = undef_v16acc64();
   int value_index = 0;
+
+  // Calculate half the input channels
+  const int half_input_channels = input_channels / 2;
 
   for (oc = 0; oc < output_channels / 8; oc++) {
     for (oc8 = 0; oc8 < 8; oc8++) {
       for (x = 0; x < input_width; x++) { // col of output image
         int sum = 0;
-        int sum_srs = 0;
-        int64_t skip_sum = 0;
-        int skip_sum_srs_final = 0;
-        int skip_sum_srs_final_out = 0;
-        int skip_temp = 0;
-        for (ic = 0; ic < input_channels / 8; ic++) {
+        int sum_srs=0;
+        for (ic = 0; ic < half_input_channels / 8; ic++) {
           for (ic8 = 0; ic8 < 8; ic8++) {
-            // int val = input0[ic * input_width + x];
             int val = input0[(ic * input_width * 8) + (x * 8) + ic8];
-            // int k = kernels[oc * input_channels + ic];
-            int k = kernels[(oc * (input_channels / 8) * 64) + (ic * 64) +
+            int k = kernels[(oc * (half_input_channels / 8) * 64) + (ic * 64) +
                             (ic8 * 8) + oc8];
+            
             sum += val * k;
           }
         }
-        upd_elem(v32vec_partial, value_index++, sum);
+        
+        // sum_srs = (sum + (1 << (scaleT - 1))) >> scaleT;
+        // sum_srs = (sum_srs > MAX)    ? MAX
+        //           : (sum_srs < -MIN) ? -MIN
+        //                              : sum_srs; // clip
+        v16vec_partial=upd_elem(v16vec_partial, value_index, sum);
+        value_index++;
         if (value_index == MAX_VALUES) {
-                // Transfer the values 
-                v32acc_partial= sups (v32vec_partial,0);
-                put_mcd(v32acc_partial,1);
+                // Transfer the values from vec to acc 
+                v16acc_partial= lups(v16vec_partial,0);
+                put_mcd(v16acc_partial); //push over cascade
                 // Reset the index
                 value_index = 0;
         }
@@ -143,12 +145,14 @@ void conv2dk1_skip_ui8_i8_i8_scalar_cascade_get(
   event0();
 
   int x, ic, ic2, oc, oc8, ic8, ic8b;
-  #define MAX_VALUES 32
+  
   const int scaleT = scale;
   const int skip_scaleT = skip_scale;
 
-  v32int16 v32vec_partial = undef_v32int16();
-  v32acc32 v32acc_partial = undef_v32acc32();
+  const int half_input_channels = input_channels / 2;
+
+  v16int32 v16vec_partial = undef_v16int32();
+  v16acc64 v16acc_partial = undef_v16acc64();
   int value_index = 0;
   for (oc = 0; oc < output_channels / 8; oc++) {
     for (oc8 = 0; oc8 < 8; oc8++) {
@@ -159,49 +163,50 @@ void conv2dk1_skip_ui8_i8_i8_scalar_cascade_get(
         int skip_sum_srs_final = 0;
         int skip_sum_srs_final_out = 0;
         int skip_temp = 0;
-        int input_channel_offset=120;
+
         // Extract cascade sum values when starting a new block
         if (value_index == 0) {
-
-                v32acc_partial=get_scd_v32acc32(); // Get the accumulated values
-                v32vec_partial= lsrs(v32acc_partial,0,0); // Convert accumulator to vector
+                v16acc_partial=get_scd_v16acc64(); // Get the accumulated values
+                v16vec_partial= lsrs(v16acc_partial,0,0); // Convert accumulator to vector
                 
         }
 
         // Extract the specific cascade sum for the current index
-        int16_t partial_sum=ext_elem(v32vec_partial, value_index,0);
+        int partial_sum=ext_elem(v16vec_partial, value_index);
         value_index++;
-        // int ic_ofst = ic + (input_channel_offset / 8);
-        for (ic = input_channel_offset; ic < (input_channel_offset+input_channels) / 8; ic++) {
+
+        for (ic = half_input_channels/8; ic < input_channels / 8; ic++) {
           
           for (ic8 = 0; ic8 < 8; ic8++) {
             int val = input0[(ic * input_width * 8) + (x * 8) + ic8];
-            int k = kernels[(oc * (input_channels / 8) * 64) + (ic * 64) +
-                            (ic8 * 8) + oc8];
+            int k = kernels[(oc * (half_input_channels / 8) * 64) + ((ic - half_input_channels / 8) * 64) + (ic8 * 8) + oc8];
+            
             sum += val * k;
           }
         }
+        
         if (value_index == MAX_VALUES) {
                 value_index = 0;
         }
         // scale for convolution
-        // sum=partial_sum+sum;
-        sum=partial_sum;
+        
+
+        sum=sum+partial_sum;
         sum_srs = (sum + (1 << (scaleT - 1))) >> scaleT;
         sum_srs = (sum_srs > MAX)    ? MAX
                   : (sum_srs < -MIN) ? -MIN
                                      : sum_srs; // clip
-        // //clip
+        //clip
 
-        skip_temp = skip[(oc * input_width * 8) + (x * 8) + oc8];
-        skip_sum = sum_srs + skip_temp;
+        // skip_temp = skip[(oc * input_width * 8) + (x * 8) + oc8];
+        // skip_sum = sum_srs + skip_temp;
 
-        skip_sum_srs_final =
-            (skip_sum + (1 << (skip_scaleT - 1))) >> skip_scaleT;
-        skip_sum_srs_final_out = (skip_sum_srs_final > MAX) ? MAX
-                                 : (skip_sum_srs_final < -MIN)
-                                     ? -MIN
-                                     : skip_sum_srs_final; // clip
+        // skip_sum_srs_final =
+        //     (skip_sum + (1 << (skip_scaleT - 1))) >> skip_scaleT;
+        // skip_sum_srs_final_out = (skip_sum_srs_final > MAX) ? MAX
+        //                          : (skip_sum_srs_final < -MIN)
+        //                              ? -MIN
+        //                              : skip_sum_srs_final; // clip
 
         output[(oc * input_width * 8) + (x * 8) + oc8] = sum_srs;
       }
