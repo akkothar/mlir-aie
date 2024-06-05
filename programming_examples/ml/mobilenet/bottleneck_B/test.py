@@ -298,7 +298,7 @@ def main(opts):
     
     q_bottleneck_out = quant_bottleneck_model(input)
     golden_output = q_bottleneck_out.int(float_datatype=True).data.numpy().astype(dtype_out)
-    print("Golden::Brevitas::", golden_output)
+    # print("Golden::Brevitas::", golden_output)
     q_inp = quant_bottleneck_model.quant_id_1(input)
     int_inp = q_inp.int(float_datatype=True)
     # print(input.shape)
@@ -362,18 +362,18 @@ def main(opts):
     )   
   
     
-    print("combined_scale after conv1x1:", block_0_combined_scale1.item())
-    print("combined_scale after conv3x3:", block_0_combined_scale2.item())
-    print("combined_scale after conv1x1:", block_0_combined_scale3.item())
-    print("********************BN11*******************************")
-    print("combined_scale after conv1x1:", block_11_combined_scale1.item())
-    print("combined_scale after conv3x3:", block_11_combined_scale2.item())
-    print("combined_scale after conv1x1:", block_11_combined_scale3.item())
-    print("combined_scale after skip add:", block_11_combined_scale_skip.item())
-    print("********************BN12*******************************")
-    print("combined_scale after conv1x1:", block_12_combined_scale1.item())
-    print("combined_scale after conv3x3:", block_12_combined_scale2.item())
-    print("combined_scale after conv1x1:", block_12_combined_scale3.item())
+    # print("combined_scale after conv1x1:", block_0_combined_scale1.item())
+    # print("combined_scale after conv3x3:", block_0_combined_scale2.item())
+    # print("combined_scale after conv1x1:", block_0_combined_scale3.item())
+    # print("********************BN11*******************************")
+    # print("combined_scale after conv1x1:", block_11_combined_scale1.item())
+    # print("combined_scale after conv3x3:", block_11_combined_scale2.item())
+    # print("combined_scale after conv1x1:", block_11_combined_scale3.item())
+    # print("combined_scale after skip add:", block_11_combined_scale_skip.item())
+    # print("********************BN12*******************************")
+    # print("combined_scale after conv1x1:", block_12_combined_scale1.item())
+    # print("combined_scale after conv3x3:", block_12_combined_scale2.item())
+    # print("combined_scale after conv1x1:", block_12_combined_scale3.item())
     # print("combined_scale after conv1x1:", ( block_0_relu_2 * block_0_weight_scale3).item())
     # ------------------------------------------------------
     # Reorder input data-layout
@@ -455,7 +455,7 @@ def main(opts):
     bn12_total_wts = np.concatenate((bn12_wts1, bn12_wts2, bn12_wts3), axis=None)
     total_wts = np.concatenate((bn10_total_wts,bn11_total_wts,bn12_total_wts), axis=None)
     total_wts.tofile(log_folder + "/after_weights_mem_fmt_final.txt", sep=",", format="%d")
-    print(total_wts.shape)
+    # print(total_wts.shape)
     # ------------------------------------------------------
     # Main run loop
     # ------------------------------------------------------
@@ -476,7 +476,7 @@ def main(opts):
         log_folder + "/after_ofm_mem_fmt_final.txt", sep=",", format="%d"
     )
     ofm_mem_fmt_out = torch.from_numpy(ofm_mem_fmt).unsqueeze(0)
-    print(ofm_mem_fmt_out)
+    # print(ofm_mem_fmt_out)
     # ------------------------------------------------------
     # Compare the AIE output and the golden reference
     # ------------------------------------------------------

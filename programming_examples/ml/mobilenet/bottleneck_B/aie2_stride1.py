@@ -125,6 +125,7 @@ def mobilenetBottleneckB():
                     int32_ty,
                 ],
             )
+            
             conv2dk3_dw = external_func(
                 "conv2dk3_ui8",
                 inputs=[
