@@ -48,8 +48,8 @@ void conv2dk1_i8_scalar_cascade_put(
   const int input_channel_chunk_size = input_channels / input_split;
 
   // Determine the start and end of the loop based on the chunk index
-  const int start_ic = input_channels/2+weight_index * input_channel_chunk_size;
-  const int end_ic =  input_channels/2+start_ic + input_channel_chunk_size;
+  const int start_ic = weight_index * input_channel_chunk_size;
+  const int end_ic =  start_ic + input_channel_chunk_size;
 
   for (oc = 0; oc < output_channels / 8; oc++) {
     for (oc8 = 0; oc8 < 8; oc8++) {

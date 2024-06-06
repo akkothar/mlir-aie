@@ -46,8 +46,8 @@ void conv2dk1_i8_ui8_scalar_cascade_get(
   const int input_channel_chunk_size = input_channels / input_split;
 
   // Determine the start and end of the loop based on the chunk index
-  const int start_ic = weight_index * input_channel_chunk_size;
-  const int end_ic = start_ic + input_channel_chunk_size;
+  const int start_ic = input_channels/2 + weight_index * input_channel_chunk_size;
+  const int end_ic = input_channels/2 + start_ic + input_channel_chunk_size;
 
   v16int32 v16vec_partial = undef_v16int32();
   v16acc64 v16acc_partial = undef_v16acc64();
@@ -84,15 +84,16 @@ void conv2dk1_i8_ui8_scalar_cascade_get(
         }
         // scale for convolution
         
+        if(end_ic == input_channels){
+          sum=sum+partial_sum;
+          sum_srs = (sum + (1 << (scaleT - 1))) >> scaleT;
+          sum_srs = (sum_srs > UMAX)    ? UMAX
+                    : (sum_srs < 0) ? 0
+                                      : sum_srs; // clip
+          //clip
 
-        sum=sum+partial_sum;
-        sum_srs = (sum + (1 << (scaleT - 1))) >> scaleT;
-        sum_srs = (sum_srs > UMAX)    ? UMAX
-                  : (sum_srs < 0) ? 0
-                                     : sum_srs; // clip
-        //clip
-
-        output[(oc * input_width * 8) + (x * 8) + oc8] = sum_srs;
+          output[(oc * input_width * 8) + (x * 8) + oc8] = sum_srs;
+        }
       }
     }
   }
