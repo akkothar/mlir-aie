@@ -34,7 +34,8 @@ const int32_t MAX_VALUES = 16;
 #ifdef PUT_I8_CAS
 void conv2dk1_i8_scalar_cascade_put(
     int8_t *input0, int8_t *kernels, 
-    const int32_t input_width, const int32_t input_channels, const int32_t output_channels) {
+    const int32_t input_width, const int32_t input_channels, const int32_t output_channels,
+    const int32_t input_split,const int32_t weight_index) {
   event0();
 
   int x, ic, ic2, oc, oc8, ic8, ic8b;
@@ -44,17 +45,21 @@ void conv2dk1_i8_scalar_cascade_put(
   int value_index = 0;
 
   // Calculate half the input channels
-  const int half_input_channels = input_channels / 2;
+  const int input_channel_chunk_size = input_channels / input_split;
+
+  // Determine the start and end of the loop based on the chunk index
+  const int start_ic = input_channels/2+weight_index * input_channel_chunk_size;
+  const int end_ic =  input_channels/2+start_ic + input_channel_chunk_size;
 
   for (oc = 0; oc < output_channels / 8; oc++) {
     for (oc8 = 0; oc8 < 8; oc8++) {
       for (x = 0; x < input_width; x++) { // col of output image
         int sum = 0;
         int sum_srs=0;
-        for (ic = 0; ic < half_input_channels / 8; ic++) {
+        for (ic = start_ic/8; ic < end_ic / 8; ic++) {
           for (ic8 = 0; ic8 < 8; ic8++) {
             int val = input0[(ic * input_width * 8) + (x * 8) + ic8];
-            int k = kernels[(oc * (half_input_channels / 8) * 64) + (ic * 64) +
+            int k = kernels[(oc * (input_channel_chunk_size / 8) * 64) + (ic * 64) +
                             (ic8 * 8) + oc8];
             
             sum += val * k;
@@ -251,10 +256,10 @@ extern "C" {
 #ifdef PUT_I8_CAS
 void conv2dk1_i8_put(int8_t *input0,int8_t *kernels,
                        const int32_t input_width, const int32_t input_channels,
-                       const int32_t output_channels) {
+                       const int32_t output_channels,const int32_t input_split,const int32_t weight_index) {
   conv2dk1_i8_scalar_cascade_put(input0,  kernels,
                                             input_width,  input_channels, 
-                                            output_channels);
+                                            output_channels, input_split,weight_index);
 }
 #endif // PUT
 

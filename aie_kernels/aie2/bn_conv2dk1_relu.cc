@@ -36,13 +36,18 @@ const int32_t MAX_VALUES = 16;
 void conv2dk1_i8_ui8_scalar_cascade_get(
     int8_t *input0, int8_t *kernels, uint8_t *output,
     const int32_t input_width, const int32_t input_channels, const int32_t output_channels,
+    const int32_t input_split,const int32_t weight_index,
     const int scale) {
   event0();
 
   int x, ic, ic2, oc, oc8, ic8, ic8b;
   
   const int scaleT = scale;
-  const int half_input_channels = input_channels / 2;
+  const int input_channel_chunk_size = input_channels / input_split;
+
+  // Determine the start and end of the loop based on the chunk index
+  const int start_ic = weight_index * input_channel_chunk_size;
+  const int end_ic = start_ic + input_channel_chunk_size;
 
   v16int32 v16vec_partial = undef_v16int32();
   v16acc64 v16acc_partial = undef_v16acc64();
@@ -64,11 +69,11 @@ void conv2dk1_i8_ui8_scalar_cascade_get(
         int partial_sum=ext_elem(v16vec_partial, value_index);
         value_index++;
 
-        for (ic = half_input_channels/8; ic < input_channels / 8; ic++) {
+        for (ic = start_ic/8; ic < end_ic / 8; ic++) {
           
           for (ic8 = 0; ic8 < 8; ic8++) {
             int val = input0[(ic * input_width * 8) + (x * 8) + ic8];
-            int k = kernels[(oc * (half_input_channels / 8) * 64) + ((ic - half_input_channels / 8) * 64) + (ic8 * 8) + oc8];
+            int k = kernels[(oc * (input_channel_chunk_size / 8) * 64) + ((ic - input_channel_chunk_size / 8) * 64) + (ic8 * 8) + oc8];
             
             sum += val * k;
           }
@@ -279,10 +284,11 @@ extern "C" {
 void conv2dk1_i8_ui8_get(int8_t *input0,int8_t *kernels,
                        uint8_t *output,
                        const int32_t input_width, const int32_t input_channels,
-                       const int32_t output_channels, const int scale
+                       const int32_t output_channels,const int32_t input_split,
+                       const int32_t weight_index, const int scale
                        ) {
   conv2dk1_i8_ui8_scalar_cascade_get(input0,  kernels, output, input_width,
-                           input_channels, output_channels, scale);
+                           input_channels, output_channels,input_split,weight_index, scale);
 }
 
 #endif // GET
