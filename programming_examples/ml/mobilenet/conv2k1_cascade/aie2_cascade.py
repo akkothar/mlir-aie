@@ -44,7 +44,7 @@ def mobilenetBottleneckB():
                     1,
                     InC,
                 ),
-                uint8_ty,
+                int8_ty,
             )
          
             # define wts

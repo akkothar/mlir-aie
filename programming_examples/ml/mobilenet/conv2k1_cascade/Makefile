@@ -22,7 +22,7 @@ insts.txt: build/${mlirFileName}.mlir
 	aiecc.py -v --aie-only-generate-npu --npu-insts-name=$@ $<
 
 build/conv2dk1_skip_put.o: bn_conv2dk1_i8.cc
-	xchesscc -d ${CHESSCC2_FLAGS} -DPUT_UI8_CAS -c $< -o $@
+	xchesscc -d ${CHESSCC2_FLAGS} -DPUT_I8_CAS -c $< -o $@
 
 build/conv2dk1_skip_get.o: bn_conv2dk1_skip.cc
 	xchesscc -d ${CHESSCC2_FLAGS} -DGET -c $< -o $@
