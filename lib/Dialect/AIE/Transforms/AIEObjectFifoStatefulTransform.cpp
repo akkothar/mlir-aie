@@ -662,46 +662,64 @@ struct AIEObjectFifoStatefulTransformPass
     if (auto linkOp = getOptionalLinkOp(op)) {
       if (objFifoLinks.find(*linkOp) != objFifoLinks.end()) {
         target = objFifoLinks[*linkOp];
+        auto srcOffsets = linkOp->getSrcOffsets();
+        auto dstOffsets = linkOp->getDstOffsets();
 
         if (linkOp->isJoin()) {
-          // find offset based on order of this op in join list
+          // compute offset and length
           isJoin = true;
           if (target == op) {
             acqNum = linkOp->getFifoIns().size();
             relNum = linkOp->getFifoIns().size();
           } else {
+            int i = 0;
             for (auto fifoIn : linkOp->getInputObjectFifos()) {
-              auto fifoType =
-                  llvm::cast<AIEObjectFifoType>(fifoIn.getElemType());
-              auto elemType = llvm::cast<MemRefType>(fifoType.getElementType());
               if (fifoIn.name() == op.name())
                 break;
-              extraOffset += elemType.getNumElements();
+              i++;
             }
+            extraOffset = *getConstantIntValue(srcOffsets[i]);
+
+            auto fifoOut = llvm::cast<AIEObjectFifoType>(linkOp->getOutputObjectFifos()[0].getElemType());
+            auto elemTypeOut = llvm::cast<MemRefType>(fifoOut.getElementType());
+            int bigLenOut = elemTypeOut.getNumElements();
+            if ((unsigned)i == linkOp->getFifoIns().size() - 1)
+              lenOut = bigLenOut - *getConstantIntValue(srcOffsets[i]);
+            else
+              lenOut = *getConstantIntValue(srcOffsets[i + 1]) - extraOffset;
           }
         } else if (linkOp->isDistribute()) {
-          // find offset based on order of this op in distribute list
+          // compute offset and length
           isDistribute = true;
           if (target == op) {
             acqNum = linkOp->getFifoOuts().size();
             relNum = linkOp->getFifoOuts().size();
           } else {
+            int i = 0;
             for (auto fifoOut : linkOp->getOutputObjectFifos()) {
-              auto fifoType =
-                  llvm::cast<AIEObjectFifoType>(fifoOut.getElemType());
-              auto elemType = llvm::cast<MemRefType>(fifoType.getElementType());
               if (fifoOut.name() == op.name())
                 break;
-              extraOffset += elemType.getNumElements();
+              i++;
             }
+            extraOffset = *getConstantIntValue(dstOffsets[i]);
+
+            auto fifoIn = llvm::cast<AIEObjectFifoType>(linkOp->getInputObjectFifos()[0].getElemType());
+            auto elemTypeIn = llvm::cast<MemRefType>(fifoIn.getElementType());
+            int bigLenIn = elemTypeIn.getNumElements();
+            if ((unsigned)i == linkOp->getFifoOuts().size() - 1)
+              lenOut = bigLenIn - *getConstantIntValue(dstOffsets[i]);
+            else
+              lenOut = *getConstantIntValue(dstOffsets[i + 1]) - extraOffset;
           }
         } else {
           if (target != op) {
-            auto targetFifo =
-                llvm::cast<AIEObjectFifoType>(target.getElemType());
-            auto targetElemType =
-                llvm::cast<MemRefType>(targetFifo.getElementType());
-            lenOut = targetElemType.getNumElements();
+            if (dims.getValue().empty()) {
+              auto targetFifo =
+                  llvm::cast<AIEObjectFifoType>(target.getElemType());
+              auto targetElemType =
+                  llvm::cast<MemRefType>(targetFifo.getElementType());
+              lenOut = targetElemType.getNumElements();
+            }
           }
         }
 
@@ -742,16 +760,22 @@ struct AIEObjectFifoStatefulTransformPass
     Block *dmaBlock = builder.createBlock(endBlock);
     Block *bdBlock = builder.createBlock(endBlock);
 
+    // check for repeat count in objfifo dims
+    int repeatCount = 1;
+    if (!dims.getValue().empty()) {
+      auto highestStride = dims.getValue().begin()->getStride();
+      if (highestStride == 0) {
+        repeatCount = dims.getValue().begin()->getSize();
+        dims = AIE::BDDimLayoutArrayAttr::get(op->getContext(), dims.getValue().drop_front(1));
+      }
+    }
+
     // create DMA channel
     builder.setInsertionPointToStart(dmaBlock);
-    int repeat_count = 0;
     if (op.getMemtileRepeat().has_value())
-      repeat_count = op.getMemtileRepeat().value();
-    int repeat_count = 0;
-    if (op.getMemtileRepeat().has_value())
-      repeat_count = op.getMemtileRepeat().value();
+      repeatCount = op.getMemtileRepeat().value();
     builder.create<DMAStartOp>(builder.getUnknownLoc(), channelDir,
-                               channelIndex, repeat_count, bdBlock,
+                               channelIndex, repeatCount, bdBlock,
                                endBlock);
     if (lastDmaBlock != nullptr)
       lastDmaBlock->getTerminator()->setSuccessor(dmaBlock, 1);
