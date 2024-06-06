@@ -14,6 +14,7 @@
 #include "aie/Dialect/AIE/Transforms/AIEPasses.h"
 
 #include "mlir/Analysis/TopologicalSortUtils.h"
+#include "mlir/Analysis/TopologicalSortUtils.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -747,7 +748,8 @@ struct AIEObjectFifoStatefulTransformPass
     if (op.getMemtileRepeat().has_value())
       repeat_count = op.getMemtileRepeat().value();
     builder.create<DMAStartOp>(builder.getUnknownLoc(), channelDir,
-                               channelIndex, repeat_count, bdBlock, endBlock);
+                               channelIndex, /*repeatCount*/ 0, bdBlock,
+                               endBlock);
     if (lastDmaBlock != nullptr)
       lastDmaBlock->getTerminator()->setSuccessor(dmaBlock, 1);
 
