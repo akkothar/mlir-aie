@@ -54,8 +54,10 @@ void conv2dk1_i8_ui8_scalar_cascade_get(
   int value_index = 0;
   for (oc = 0; oc < output_channels / 8; oc++) {
     for (oc8 = 0; oc8 < 8; oc8++) {
+      int sum[MAX_VALUES];
       for (x = 0; x < input_width; x++) { // col of output image
-        int sum = 0;
+       if(weight_index==0)
+          sum[x] = 0;
         int sum_srs = 0;
 
         // Extract cascade sum values when starting a new block
@@ -75,7 +77,7 @@ void conv2dk1_i8_ui8_scalar_cascade_get(
             int val = input0[(ic * input_width * 8) + (x * 8) + ic8];
             int k = kernels[(oc * (input_channel_chunk_size / 8) * 64) + ((ic - input_channel_chunk_size / 8) * 64) + (ic8 * 8) + oc8];
             
-            sum += val * k;
+            sum[x] += val * k;
           }
         }
         
@@ -83,10 +85,10 @@ void conv2dk1_i8_ui8_scalar_cascade_get(
                 value_index = 0;
         }
         // scale for convolution
-        sum=sum+partial_sum;
+        sum[x]=sum[x]+partial_sum;
         // sum=partial_sum;
         if(end_ic == input_channels){
-          sum_srs = (sum + (1 << (scaleT - 1))) >> scaleT;
+          sum_srs = (sum[x] + (1 << (scaleT - 1))) >> scaleT;
           sum_srs = (sum_srs > UMAX)    ? UMAX
                     : (sum_srs < 0) ? 0
                                       : sum_srs; // clip

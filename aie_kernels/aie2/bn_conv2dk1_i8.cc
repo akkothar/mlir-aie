@@ -53,16 +53,18 @@ void conv2dk1_i8_scalar_cascade_put(
 
   for (oc = 0; oc < output_channels / 8; oc++) {
     for (oc8 = 0; oc8 < 8; oc8++) {
+      int sum[MAX_VALUES];
       for (x = 0; x < input_width; x++) { // col of output image
-        int sum = 0;
-        int sum_srs=0;
+        if(weight_index==0)
+          sum[x] = 0;
+
         for (ic = start_ic/8; ic < end_ic / 8; ic++) {
           for (ic8 = 0; ic8 < 8; ic8++) {
             int val = input0[(ic * input_width * 8) + (x * 8) + ic8];
             int k = kernels[(oc * (input_channel_chunk_size / 8) * 64) + (ic * 64) +
                             (ic8 * 8) + oc8];
             
-            sum += val * k;
+            sum[x] += val * k;
           }
         }
         
@@ -70,7 +72,7 @@ void conv2dk1_i8_scalar_cascade_put(
         // sum_srs = (sum_srs > MAX)    ? MAX
         //           : (sum_srs < -MIN) ? -MIN
         //                              : sum_srs; // clip
-        v16vec_partial=upd_elem(v16vec_partial, value_index, sum);
+        v16vec_partial=upd_elem(v16vec_partial, value_index, sum[x]);
         value_index++;
         if (value_index == MAX_VALUES) {
                 // Transfer the values from vec to acc 
