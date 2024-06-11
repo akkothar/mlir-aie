@@ -24,11 +24,11 @@ if len(sys.argv) == 3:
 
 
 InC = 256
-InW2 = 2
+InW2 = 1
 InH2 = 1
-OutC = 8
+OutC = 32
 WeightChunks=4
-RepeatOutChannel=math.floor(OutC/8)
+RepeatChannels=math.floor(InW2)
 # WeightIndex=0
 # WeightSplitPerCore=WeightSplit//2
 WeightSplitPerCore=1
@@ -115,12 +115,12 @@ def conv2dk1():
                 "inOF_wts_L2_02", MemTile, [ComputeTile2], 2, ty_wts
             )
             object_fifo_link(of_inOF_wts_0_L3L2, of_inOF_wts_L2_02)
-
+            of_inOF_wts_L2_02.set_memtile_repeat(RepeatChannels)
             # Output
             of_out_02_L2 = object_fifo("out_02_L2", ComputeTile2, [MemTile], 2, ty_out)
             of_outOFL2L3 = object_fifo("outOFL2L3", MemTile, [ShimTile], 2, ty_out)
             object_fifo_link(of_out_02_L2, of_outOFL2L3)
-            of_outOFL2L3.set_memtile_repeat(RepeatOutChannel)
+            
 
             # Set up compute tiles
             rtp2 = Buffer(ComputeTile2, [16], T.i32(), "rtp2")
@@ -134,10 +134,11 @@ def conv2dk1():
                         elemIn = of_act_L2_02.acquire(ObjectFifoPort.Consume, 1)
                         elemOut0 = of_out_02_L2.acquire(ObjectFifoPort.Produce, 1)
                         WeightIndex=0
-                        elemWts = of_inOF_wts_L2_02.acquire(ObjectFifoPort.Consume, 1)
+                        
                         scale = memref.load(rtp2, [0])
                         
-                        for oc in range(0,OutC//8):
+                        for oc in range(0,InW2):
+                            elemWts = of_inOF_wts_L2_02.acquire(ObjectFifoPort.Consume, 1)
                             call(
                                 conv2dk1_i8_ui8_partial,
                                 [

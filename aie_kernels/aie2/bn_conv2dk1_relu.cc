@@ -35,10 +35,10 @@ const int32_t MAX_VALUES = 16;
 void conv2dk1_i8_ui8_scalar_partial(int8_t *input, int8_t *kernels, uint8_t *output,
                         const int32_t input_width, const int32_t input_channels,
                         const int32_t output_channels, const int scale,
-                        int32_t input_split,int32_t weight_index,int32_t oc ) {
+                        int32_t input_split,int32_t weight_index,int32_t x ) {
   
   event0();
-  int x, ic, ic8, oc8;
+  int oc, ic, ic8, oc8;
 
   //  v16acc64 chess_storage(cm0) v16acc_partial0;
   //  v16acc64 chess_storage(cm1) v16acc_partial1;
@@ -73,9 +73,9 @@ void conv2dk1_i8_ui8_scalar_partial(int8_t *input, int8_t *kernels, uint8_t *out
   const int input_channel_chunk_size = input_channels / input_split;
   const int start_ic = weight_index * input_channel_chunk_size;
   const int end_ic =  start_ic + input_channel_chunk_size;
-  // for (oc = 0; oc < output_channels / 8; oc++) {
-  for (x = 0; x < input_width; x++) { // col of output image
-    v16acc64& accumulator = *accumulators[x];
+  for (oc = 0; oc < output_channels / 8; oc++) {
+  // for (x = 0; x < input_width; x++) { // col of output image
+    v16acc64& accumulator = *accumulators[oc];
     v16int32 v16vec_partial = lsrs(accumulator,0,0); 
     int value_index = 0;
 

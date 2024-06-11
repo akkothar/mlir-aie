@@ -27,12 +27,12 @@ from dolphin import print_dolphin
 vectorSize=8
 
 
-InW2 = 2
+InW2 = 1
 InH2 = 1
 # OutC2 = OutC1
 OutC2 = 256
 
-OutC3 = 8
+OutC3 = 32
 
 InC_vec =  math.floor(OutC2/vectorSize)
 OutC_vec =  math.floor(OutC3/vectorSize)
@@ -197,7 +197,7 @@ def main(opts):
     before_input.tofile(
         log_folder + "/before_ifm_mem_fmt_1x1.txt", sep=",", format="%d"
     )
-    ifm_mem_fmt = ds.reorder_mat(before_input, "CXC8", "CX")
+    ifm_mem_fmt = ds.reorder_mat(before_input, "CC8", "C")
     ifm_mem_fmt.tofile(log_folder + "/after_ifm_mem_fmt_1x1.txt", sep=",", format="%d")
     
     int_weight = model.quant_conv3.quant_weight().int(
