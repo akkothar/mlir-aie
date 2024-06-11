@@ -27,12 +27,12 @@ from dolphin import print_dolphin
 vectorSize=8
 
 
-InW2 = 7
+InW2 = 1
 InH2 = 1
 # OutC2 = OutC1
-OutC2 = 64
+OutC2 = 128
 
-OutC3 = 64
+OutC3 = 8
 
 InC_vec =  math.floor(OutC2/vectorSize)
 OutC_vec =  math.floor(OutC3/vectorSize)
@@ -73,11 +73,6 @@ def main(opts):
     # Initialize activation, weights, scaling factor for int8 model
     # ------------------------------------------------------
     input = torch.randn(1, InC_vec*vectorSize, InH2, InW2)
-
-    conv_scale = 0.0039  # scale to convert int8 output to floating point
-    relu_scale = 0.0078  # scale to convert int8 output to floating point
-    min = 0
-    max = 255
 
     # ------------------------------------------------------
     # Get device, load the xclbin & kernel and register them
@@ -130,16 +125,54 @@ def main(opts):
             out = self.quant_relu1(out)
             return out
 
+    class QuantBottleneck_HALF(nn.Module):
+        def __init__(self, in_planes=16, expand=16,project=16):
+            super(QuantBottleneck_HALF, self).__init__()
+            self.quant_id_1 = QuantIdentity(
+                act_quant=Int8ActPerTensorFixedPoint,
+                bit_width=8,
+                return_quant_tensor=True,
+            )
+
+            self.quant_conv3 = QuantConv2d(
+                expand,
+                project,
+                kernel_size=1,
+                bit_width=8,
+                weight_bit_width=8,
+                bias=False,
+                weight_quant=Int8WeightPerTensorFixedPoint,
+                return_quant_tensor=True,
+            )
+            
+            self.relu = QuantIdentity(
+                act_quant=Uint8ActPerTensorFixedPoint,
+                bit_width=8,
+                return_quant_tensor=True,
+            )
+
+        def forward(self, x):
+            out_q = self.quant_id_1(x)
+            # out = self.quant_conv1(out_q)
+            # out = self.quant_relu1(out)
+            # out = self.quant_conv2(out)
+            # out = self.quant_relu2(out)
+            out = self.quant_conv3(out_q)
+            # out = self.quant_id_1(out)
+            # out=out+out_q
+            out = self.relu(out)
+            return out
+
     # ------------------------------------------------------
     # Pytorch baseline
     # ------------------------------------------------------
-    model = QuantBottleneck()
+    model = QuantBottleneck(expand=OutC2,project=OutC3)
     model.eval()
 
     q_bottleneck_out = model(input)
     golden_output = q_bottleneck_out.int(float_datatype=True).data.numpy().astype(dtype_out)
     print("Golden::Brevitas::", golden_output)
-    print(input.shape)
+    print("Input: ", input.shape)
   
     # extract int input
     q_inp = model.quant_id_1(input)
@@ -156,7 +189,6 @@ def main(opts):
     print("combined_scale after conv1x1:", combined_scale3.item())
     print("**************************************************")
 
-
     # ------------------------------------------------------
     # Reorder input data-layout
     # ------------------------------------------------------
@@ -165,14 +197,55 @@ def main(opts):
     before_input.tofile(
         log_folder + "/before_ifm_mem_fmt_1x1.txt", sep=",", format="%d"
     )
-    ifm_mem_fmt = ds.reorder_mat(before_input, "CXC8", "CX")
+    ifm_mem_fmt = ds.reorder_mat(before_input, "CC8", "C")
     ifm_mem_fmt.tofile(log_folder + "/after_ifm_mem_fmt_1x1.txt", sep=",", format="%d")
-
+    
     int_weight = model.quant_conv3.quant_weight().int(
         float_datatype=True
     )
-    wts1 = ds.reorder_mat(int_weight.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX")
-    total_wts = np.concatenate((wts1), axis=None)
+    
+    int_weight_chunk_0=int_weight[:,0:OutC2//2,:,:]
+    int_weight_chunk_1=int_weight[:,OutC2//2:OutC2,:,:]
+    print("Full wts shape: ",int_weight.shape)
+    print("Chunk0 wts shape: ",int_weight_chunk_0.shape)
+    print("Chunk1 wts shape: ",int_weight_chunk_1.shape)
+    # int_weight_chunk_0 = torch.zeros((64, 64, 1, 1))
+    # int_weight_chunk_1 = torch.ones((64, 64, 1, 1))
+    wts1_chunk_0 = ds.reorder_mat(int_weight_chunk_0.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX")
+    wts1_chunk_1 = ds.reorder_mat(int_weight_chunk_1.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX")
+
+   
+    # ------------------------------------------------------
+    # HALF
+    # ------------------------------------------------------
+    quant_bottleneck_model_HALF = QuantBottleneck_HALF(expand=OutC2//2,project=OutC3)
+    quant_bottleneck_model_HALF.eval()
+
+    q_bottleneck_out_HALF = quant_bottleneck_model_HALF(input[:,0:OutC2//2,:,:])
+    # q_bottleneck_out_HALF = quant_bottleneck_model_HALF(input[:,OutC2//2:OutC2,:,:])
+    golden_output_HALF = q_bottleneck_out_HALF.int(float_datatype=True).data.numpy().astype(dtype_out)
+    print("Golden_HALF::Brevitas::", golden_output_HALF)
+
+    inp_scale1_HALF= quant_bottleneck_model_HALF.quant_id_1.quant_act_scale()
+    skip_add_HALF = quant_bottleneck_model_HALF.relu.quant_act_scale()
+    weight_scale3_HALF = quant_bottleneck_model_HALF.quant_conv3.quant_weight_scale()
+    combined_scale3_HALF = -torch.log2(
+        inp_scale1_HALF * weight_scale3_HALF/skip_add_HALF
+    )   
+    int_weight_3_HALF = quant_bottleneck_model_HALF.quant_conv3.quant_weight().int(
+        float_datatype=True
+    )
+    wts3_put_HALF = ds.reorder_mat(
+        int_weight_3_HALF.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
+    )
+    print("********************BN13*******************************")
+    print("combined_scale_HALF after conv1x1:", combined_scale3_HALF.item())
+    print("*************************************************")
+
+    total_wts = np.concatenate((wts1_chunk_0,wts1_chunk_1), axis=None)
+    # total_wts = np.concatenate((wts3_put_HALF,wts3_put_HALF), axis=None)
+    # wts1 = ds.reorder_mat(int_weight.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX")
+    # total_wts = np.concatenate((wts1), axis=None)
     total_wts.tofile(log_folder + "/weights_mem_fmt_final.txt", sep=",", format="%d")
 
     # ------------------------------------------------------

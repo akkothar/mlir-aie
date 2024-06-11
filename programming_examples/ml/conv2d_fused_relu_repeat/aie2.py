@@ -12,7 +12,7 @@ from aie.dialects.aiex import *
 from aie.dialects.scf import *
 from aie.extras.dialects.ext import memref, arith
 from aie.extras.context import mlir_mod_ctx
-
+import math
 
 
 
@@ -23,14 +23,14 @@ if len(sys.argv) == 3:
 
 
 
-InC = 64
-InW2 = 7
+InC = 128
+InW2 = 1
 InH2 = 1
-OutC = 64
-
-InputSplit=1
-WeightIndex=0
-# WeightSplitPerCore=InputSplit//2
+OutC = 8
+WeightChunks=2
+RepeatOutChannel=math.floor(OutC/8)
+# WeightIndex=0
+# WeightSplitPerCore=WeightSplit//2
 WeightSplitPerCore=1
 
 def conv2dk1():
@@ -58,7 +58,7 @@ def conv2dk1():
          
             # define wts
             ty_wts = MemRefType.get(
-                (InC//InputSplit * OutC,), int8_ty
+                (InC//WeightChunks * OutC,), int8_ty
             )
             ty_all_wts= MemRefType.get(
                 (
@@ -81,7 +81,7 @@ def conv2dk1():
                 "conv2dk1_i8_ui8_partial",
                 inputs=[
                     ty_in,
-                    ty_all_wts,
+                    ty_wts,
                     ty_out,
                     int32_ty,
                     int32_ty,
@@ -109,13 +109,18 @@ def conv2dk1():
 
             # wts
             of_inOF_wts_0_L3L2 = object_fifo(
-                "inOF_wts_0_L3L2", ShimTile, [ComputeTile2], 1, ty_all_wts
+                "inOF_wts_0_L3L2", ShimTile, MemTile, 1, ty_all_wts
             )
+            of_inOF_wts_L2_02 = object_fifo(
+                "inOF_wts_L2_02", MemTile, [ComputeTile2], 2, ty_wts
+            )
+            object_fifo_link(of_inOF_wts_0_L3L2, of_inOF_wts_L2_02)
 
             # Output
             of_out_02_L2 = object_fifo("out_02_L2", ComputeTile2, [MemTile], 2, ty_out)
             of_outOFL2L3 = object_fifo("outOFL2L3", MemTile, [ShimTile], 2, ty_out)
             object_fifo_link(of_out_02_L2, of_outOFL2L3)
+            of_outOFL2L3.set_memtile_repeat(RepeatOutChannel)
 
             # Set up compute tiles
             rtp2 = Buffer(ComputeTile2, [16], T.i32(), "rtp2")
@@ -128,28 +133,70 @@ def conv2dk1():
                     for _ in for_(InH2):
                         elemIn = of_act_L2_02.acquire(ObjectFifoPort.Consume, 1)
                         elemOut0 = of_out_02_L2.acquire(ObjectFifoPort.Produce, 1)
-
-                        for _ in for_(WeightSplitPerCore):
-                            elemWts = of_inOF_wts_0_L3L2.acquire(ObjectFifoPort.Consume, 1)
-                            scale = memref.load(rtp2, [0])
-                            for oc in range(0,OutC//8):
-                                call(
-                                    conv2dk1_i8_ui8_partial,
-                                    [
-                                        elemIn,
-                                        elemWts,
-                                        elemOut0,
-                                        arith.constant(InW2),
-                                        arith.constant(InC),
-                                        arith.constant(OutC),
-                                        scale,
-                                        InputSplit,
-                                        WeightIndex,
-                                        oc
-                                    ],
-                                )
-                            objectfifo_release(ObjectFifoPort.Consume, "inOF_wts_0_L3L2", 1)
-                            yield_([])
+                        WeightIndex=0
+                        elemWts = of_inOF_wts_L2_02.acquire(ObjectFifoPort.Consume, 1)
+                        scale = memref.load(rtp2, [0])
+                        
+                        for oc in range(0,OutC//8):
+                            call(
+                                conv2dk1_i8_ui8_partial,
+                                [
+                                    elemIn,
+                                    elemWts,
+                                    elemOut0,
+                                    arith.constant(InW2),
+                                    arith.constant(InC),
+                                    arith.constant(OutC),
+                                    scale,
+                                    WeightChunks,
+                                    0,
+                                    oc
+                                ],
+                            )
+                            objectfifo_release(ObjectFifoPort.Consume, "inOF_wts_L2_02", 1)
+                # second iteration
+                            elemWts = of_inOF_wts_L2_02.acquire(ObjectFifoPort.Consume, 1)
+                            
+                            call(
+                                conv2dk1_i8_ui8_partial,
+                                [
+                                    elemIn,
+                                    elemWts,
+                                    elemOut0,
+                                    arith.constant(InW2),
+                                    arith.constant(InC),
+                                    arith.constant(OutC),
+                                    scale,
+                                    WeightChunks,
+                                    1,
+                                    oc
+                                ],
+                            )
+                    
+                        objectfifo_release(ObjectFifoPort.Consume, "inOF_wts_L2_02", 1)
+                       
+                        # for _ in for_(WeightChunks):
+                        #     elemWts = of_inOF_wts_L2_02.acquire(ObjectFifoPort.Consume, 1)
+                        #     scale = memref.load(rtp2, [0])
+                        #     for oc in range(0,OutC//8):
+                        #         call(
+                        #             conv2dk1_i8_ui8_partial,
+                        #             [
+                        #                 elemIn,
+                        #                 elemWts,
+                        #                 elemOut0,
+                        #                 arith.constant(InW2),
+                        #                 arith.constant(InC),
+                        #                 arith.constant(OutC),
+                        #                 scale,
+                        #                 WeightChunks,
+                        #                 WeightIndex,
+                        #                 oc
+                        #             ],
+                        #         )
+                        #     WeightIndex+=1
+                        #     objectfifo_release(ObjectFifoPort.Consume, "inOF_wts_L2_02", 1)
+                        #     yield_([])
                         objectfifo_release(ObjectFifoPort.Consume, "act_L2_02", 1)
                         objectfifo_release(ObjectFifoPort.Produce, "out_02_L2", 1)
                         

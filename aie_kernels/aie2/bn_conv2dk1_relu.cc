@@ -39,15 +39,26 @@ void conv2dk1_i8_ui8_scalar_partial(int8_t *input, int8_t *kernels, uint8_t *out
   
   event0();
   int x, ic, ic8, oc8;
+
+  //  v16acc64 chess_storage(cm0) v16acc_partial0;
+  //  v16acc64 chess_storage(cm1) v16acc_partial1;
+  //  v16acc64 chess_storage(cm2) v16acc_partial2;
+  //  v16acc64 chess_storage(cm3) v16acc_partial3;
+  //  v16acc64 chess_storage(cm4) v16acc_partial4;
+  //  v16acc64 chess_storage(cm5) v16acc_partial5;
+  //  v16acc64 chess_storage(cm6) v16acc_partial6;
+  //  v16acc64 chess_storage(cm7) v16acc_partial7;
+  //  v16acc64 chess_storage(cm8) v16acc_partial8;
+
   static v16acc64 v16acc_partial0;
   static v16acc64 v16acc_partial1;
   static v16acc64 v16acc_partial2;
   static v16acc64 v16acc_partial3;
   static v16acc64 v16acc_partial4;
-  static v16acc64  v16acc_partial5;
+  static v16acc64 v16acc_partial5;
   static v16acc64 v16acc_partial6;
   static v16acc64 v16acc_partial7;
-  static v16acc64  v16acc_partial8;
+  static v16acc64 v16acc_partial8;
 
   // Array of pointers to the accumulators
   v16acc64* accumulators[] = {
@@ -57,9 +68,8 @@ void conv2dk1_i8_ui8_scalar_partial(int8_t *input, int8_t *kernels, uint8_t *out
   };
 
   // static v16acc64 v16acc_partial;
-  
-  
-  // Determine the start and end of the loop based on the chunk index
+
+  // Determine the start and end of the loop based on the chunk index for weights
   const int input_channel_chunk_size = input_channels / input_split;
   const int start_ic = weight_index * input_channel_chunk_size;
   const int end_ic =  start_ic + input_channel_chunk_size;
@@ -70,40 +80,40 @@ void conv2dk1_i8_ui8_scalar_partial(int8_t *input, int8_t *kernels, uint8_t *out
     int value_index = 0;
 
     for (oc8 = 0; oc8 < 8; oc8++) {
-      int64_t sum = 0;
-      int64_t sum_srs = 0;
-      int64_t partial_sum = 0;
-      int64_t final_sum=0;
+      int sum = 0;
+      int current_sum = 0;
+      int sum_srs = 0;
+      int last_sum = 0;
+      int final_sum=0;
 
       //Current iteration: go over all the input channels
       for (ic = start_ic/8; ic < end_ic / 8; ic++) {
           for (ic8 = 0; ic8 < 8; ic8++) {
             int val = input[(ic * input_width * 8) + (x * 8) + ic8];
-            int k = kernels[(oc * (input_channel_chunk_size / 8) * 64) + (ic * 64) +
-                            (ic8 * 8) + oc8];
-            sum += val * k;
+            int k = kernels[(oc * (input_channel_chunk_size / 8) * 64) + ((ic - start_ic / 8) * 64) + (ic8 * 8) + oc8];
+            current_sum += val * k;
           }
-        }
+      }
     
       if (weight_index != 0){  // Extract the partial sum 
-        partial_sum=ext_elem(v16vec_partial, value_index);
-        sum+=partial_sum;
+        last_sum=ext_elem(v16vec_partial, value_index);
       }
 
+      sum=current_sum+last_sum;
+
       // Transfer scalar sum to vector
-      v16vec_partial=upd_elem(v16vec_partial, value_index, sum);  
+      v16vec_partial=upd_elem(v16vec_partial, value_index, sum); 
+      value_index++; 
 
       if(end_ic == input_channels){ //if final set of input channels, scale the final output
             // Transfer the values from acc to vect 
-            // final_sum=partial_sum+ext_elem(v16vec_partial, value_index);
             sum_srs = (sum + (1 << (scale - 1))) >> scale;
             sum_srs = (sum_srs > UMAX) ? UMAX : (sum_srs < 0) ? 0 : sum_srs;
             // sum_srs = input[(oc*input_width*8) + (x*8) + oc8];
             output[(oc * input_width * 8) + (x * 8) + oc8] = sum_srs;
       }
-
       
-      value_index++;
+      
       if (oc8 == 7) { //end of vectorization
             // // Transfer the values from vec to acc 
           accumulator= lups(v16vec_partial,0);
