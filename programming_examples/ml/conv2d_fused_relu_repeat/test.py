@@ -27,10 +27,10 @@ from dolphin import print_dolphin
 vectorSize=8
 
 
-InW2 = 1
+InW2 = 2
 InH2 = 1
 # OutC2 = OutC1
-OutC2 = 128
+OutC2 = 256
 
 OutC3 = 8
 
@@ -197,22 +197,28 @@ def main(opts):
     before_input.tofile(
         log_folder + "/before_ifm_mem_fmt_1x1.txt", sep=",", format="%d"
     )
-    ifm_mem_fmt = ds.reorder_mat(before_input, "CC8", "C")
+    ifm_mem_fmt = ds.reorder_mat(before_input, "CXC8", "CX")
     ifm_mem_fmt.tofile(log_folder + "/after_ifm_mem_fmt_1x1.txt", sep=",", format="%d")
     
     int_weight = model.quant_conv3.quant_weight().int(
         float_datatype=True
     )
     
-    int_weight_chunk_0=int_weight[:,0:OutC2//2,:,:]
-    int_weight_chunk_1=int_weight[:,OutC2//2:OutC2,:,:]
+    int_weight_chunk_0=int_weight[:,0:OutC2//4,:,:]
+    int_weight_chunk_1=int_weight[:,OutC2//4:OutC2//2,:,:]
+    int_weight_chunk_2=int_weight[:,OutC2//2:3*OutC2//4,:,:]
+    int_weight_chunk_3=int_weight[:,3*OutC2//4:OutC2,:,:]
     print("Full wts shape: ",int_weight.shape)
     print("Chunk0 wts shape: ",int_weight_chunk_0.shape)
     print("Chunk1 wts shape: ",int_weight_chunk_1.shape)
+    print("Chunk2 wts shape: ",int_weight_chunk_2.shape)
+    print("Chunk3 wts shape: ",int_weight_chunk_3.shape)
     # int_weight_chunk_0 = torch.zeros((64, 64, 1, 1))
     # int_weight_chunk_1 = torch.ones((64, 64, 1, 1))
     wts1_chunk_0 = ds.reorder_mat(int_weight_chunk_0.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX")
     wts1_chunk_1 = ds.reorder_mat(int_weight_chunk_1.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX")
+    wts1_chunk_2 = ds.reorder_mat(int_weight_chunk_2.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX")
+    wts1_chunk_3 = ds.reorder_mat(int_weight_chunk_3.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX")
 
    
     # ------------------------------------------------------
@@ -224,7 +230,7 @@ def main(opts):
     q_bottleneck_out_HALF = quant_bottleneck_model_HALF(input[:,0:OutC2//2,:,:])
     # q_bottleneck_out_HALF = quant_bottleneck_model_HALF(input[:,OutC2//2:OutC2,:,:])
     golden_output_HALF = q_bottleneck_out_HALF.int(float_datatype=True).data.numpy().astype(dtype_out)
-    print("Golden_HALF::Brevitas::", golden_output_HALF)
+    # print("Golden_HALF::Brevitas::", golden_output_HALF)
 
     inp_scale1_HALF= quant_bottleneck_model_HALF.quant_id_1.quant_act_scale()
     skip_add_HALF = quant_bottleneck_model_HALF.relu.quant_act_scale()
@@ -242,7 +248,7 @@ def main(opts):
     print("combined_scale_HALF after conv1x1:", combined_scale3_HALF.item())
     print("*************************************************")
 
-    total_wts = np.concatenate((wts1_chunk_0,wts1_chunk_1), axis=None)
+    total_wts = np.concatenate((wts1_chunk_0,wts1_chunk_1,wts1_chunk_2,wts1_chunk_3), axis=None)
     # total_wts = np.concatenate((wts3_put_HALF,wts3_put_HALF), axis=None)
     # wts1 = ds.reorder_mat(int_weight.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX")
     # total_wts = np.concatenate((wts1), axis=None)

@@ -23,11 +23,11 @@ if len(sys.argv) == 3:
 
 
 
-InC = 128
-InW2 = 1
+InC = 256
+InW2 = 2
 InH2 = 1
 OutC = 8
-WeightChunks=2
+WeightChunks=4
 RepeatOutChannel=math.floor(OutC/8)
 # WeightIndex=0
 # WeightSplitPerCore=WeightSplit//2
@@ -173,7 +173,49 @@ def conv2dk1():
                                 ],
                             )
                     
-                        objectfifo_release(ObjectFifoPort.Consume, "inOF_wts_L2_02", 1)
+                            objectfifo_release(ObjectFifoPort.Consume, "inOF_wts_L2_02", 1)
+
+                # third iteration
+                            elemWts = of_inOF_wts_L2_02.acquire(ObjectFifoPort.Consume, 1)
+                            call(
+                                conv2dk1_i8_ui8_partial,
+                                [
+                                    elemIn,
+                                    elemWts,
+                                    elemOut0,
+                                    arith.constant(InW2),
+                                    arith.constant(InC),
+                                    arith.constant(OutC),
+                                    scale,
+                                    WeightChunks,
+                                    2,
+                                    oc
+                                ],
+                            )
+                    
+                            objectfifo_release(ObjectFifoPort.Consume, "inOF_wts_L2_02", 1)
+
+
+                # fourth iteration
+                            elemWts = of_inOF_wts_L2_02.acquire(ObjectFifoPort.Consume, 1)
+                            
+                            call(
+                                conv2dk1_i8_ui8_partial,
+                                [
+                                    elemIn,
+                                    elemWts,
+                                    elemOut0,
+                                    arith.constant(InW2),
+                                    arith.constant(InC),
+                                    arith.constant(OutC),
+                                    scale,
+                                    WeightChunks,
+                                    3,
+                                    oc
+                                ],
+                            )
+                    
+                            objectfifo_release(ObjectFifoPort.Consume, "inOF_wts_L2_02", 1)
                        
                         # for _ in for_(WeightChunks):
                         #     elemWts = of_inOF_wts_L2_02.acquire(ObjectFifoPort.Consume, 1)
@@ -228,7 +270,7 @@ def conv2dk1():
             def sequence(inputFromL3, weightsFromL3, outputToL3):
                 # NpuWriteRTPOp("rtp02", col=0, row=2, index=0, value=9)
                 # NpuWriteRTPOp("rtp03", col=0, row=3, index=0, value=8)
-                NpuWriteRTPOp("rtp2", col=0, row=2, index=0, value=9)
+                NpuWriteRTPOp("rtp2", col=0, row=2, index=0, value=10)
 
                 
                 npu_dma_memcpy_nd(
