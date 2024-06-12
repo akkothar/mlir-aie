@@ -24,15 +24,42 @@ from brevitas.quant.fixed_point import (
 torch.use_deterministic_algorithms(True)
 torch.manual_seed(0)
 from dolphin import print_dolphin
+
+
+def chunk_weights(int_weight, OutC2, WeightChunks):
+    chunk_size = OutC2 // WeightChunks
+    chunks = []
+    for i in range(WeightChunks):
+        start_index = i * chunk_size
+        end_index = OutC2 if i == WeightChunks - 1 else (i + 1) * chunk_size
+        chunk = int_weight[:, start_index:end_index, :, :]
+        chunks.append(chunk)
+    return chunks
+
+def reorder_and_concatenate_chunks(int_weight, OutC2, WeightChunks, ds, dtype_wts):
+    # Chunk the weights
+    chunks = chunk_weights(int_weight, OutC2, WeightChunks)
+    
+    # Reorder each chunk
+    reordered_chunks = []
+    for idx, chunk in enumerate(chunks):
+        reordered_chunk = ds.reorder_mat(chunk.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX")
+        reordered_chunks.append(reordered_chunk)
+    
+    # Concatenate the reordered chunks
+    total_wts = np.concatenate(reordered_chunks, axis=None)
+    
+    return total_wts
+
 vectorSize=8
 
-
+OutC2 = 960
+OutC3 = 16
 InW2 = 1
 InH2 = 1
+WeightChunks=2
 # OutC2 = OutC1
-OutC2 = 256
 
-OutC3 = 32
 
 InC_vec =  math.floor(OutC2/vectorSize)
 OutC_vec =  math.floor(OutC3/vectorSize)
@@ -172,7 +199,7 @@ def main(opts):
     q_bottleneck_out = model(input)
     golden_output = q_bottleneck_out.int(float_datatype=True).data.numpy().astype(dtype_out)
     print("Golden::Brevitas::", golden_output)
-    print("Input: ", input.shape)
+    # print("Input: ", input.shape)
   
     # extract int input
     q_inp = model.quant_id_1(input)
@@ -197,30 +224,16 @@ def main(opts):
     before_input.tofile(
         log_folder + "/before_ifm_mem_fmt_1x1.txt", sep=",", format="%d"
     )
-    ifm_mem_fmt = ds.reorder_mat(before_input, "CC8", "C")
+    if(InW2>1):
+        ifm_mem_fmt = ds.reorder_mat(before_input, "CXC8", "CX")
+    else:
+        ifm_mem_fmt = ds.reorder_mat(before_input, "CC8", "C")
     ifm_mem_fmt.tofile(log_folder + "/after_ifm_mem_fmt_1x1.txt", sep=",", format="%d")
     
     int_weight = model.quant_conv3.quant_weight().int(
         float_datatype=True
     )
-    
-    int_weight_chunk_0=int_weight[:,0:OutC2//4,:,:]
-    int_weight_chunk_1=int_weight[:,OutC2//4:OutC2//2,:,:]
-    int_weight_chunk_2=int_weight[:,OutC2//2:3*OutC2//4,:,:]
-    int_weight_chunk_3=int_weight[:,3*OutC2//4:OutC2,:,:]
-    print("Full wts shape: ",int_weight.shape)
-    print("Chunk0 wts shape: ",int_weight_chunk_0.shape)
-    print("Chunk1 wts shape: ",int_weight_chunk_1.shape)
-    print("Chunk2 wts shape: ",int_weight_chunk_2.shape)
-    print("Chunk3 wts shape: ",int_weight_chunk_3.shape)
-    # int_weight_chunk_0 = torch.zeros((64, 64, 1, 1))
-    # int_weight_chunk_1 = torch.ones((64, 64, 1, 1))
-    wts1_chunk_0 = ds.reorder_mat(int_weight_chunk_0.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX")
-    wts1_chunk_1 = ds.reorder_mat(int_weight_chunk_1.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX")
-    wts1_chunk_2 = ds.reorder_mat(int_weight_chunk_2.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX")
-    wts1_chunk_3 = ds.reorder_mat(int_weight_chunk_3.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX")
-
-   
+    total_wts = reorder_and_concatenate_chunks(int_weight, OutC2, WeightChunks, ds, dtype_wts)
     # ------------------------------------------------------
     # HALF
     # ------------------------------------------------------
@@ -244,11 +257,13 @@ def main(opts):
     wts3_put_HALF = ds.reorder_mat(
         int_weight_3_HALF.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
     )
-    print("********************BN13*******************************")
-    print("combined_scale_HALF after conv1x1:", combined_scale3_HALF.item())
-    print("*************************************************")
+    # print("********************BN13*******************************")
+    # print("combined_scale_HALF after conv1x1:", combined_scale3_HALF.item())
+    # print("*************************************************")
 
-    total_wts = np.concatenate((wts1_chunk_0,wts1_chunk_1,wts1_chunk_2,wts1_chunk_3), axis=None)
+
+    
+
     # total_wts = np.concatenate((wts3_put_HALF,wts3_put_HALF), axis=None)
     # wts1 = ds.reorder_mat(int_weight.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX")
     # total_wts = np.concatenate((wts1), axis=None)
@@ -274,7 +289,7 @@ def main(opts):
         log_folder + "/after_ofm_mem_fmt_final.txt", sep=",", format="%d"
     )
     ofm_mem_fmt_out = torch.from_numpy(ofm_mem_fmt).unsqueeze(0)
-    print(ofm_mem_fmt_out)
+    print("AIE:",ofm_mem_fmt_out)
 
     # ------------------------------------------------------
     # Compare the AIE output and the golden reference
