@@ -26,7 +26,118 @@
 const int32_t MAX_VALUES = 16;
 
 
+
+
+#ifdef PARTIAL_PUT_I8_CAS_WIDTH
+// 8 Pixels Width Processing Approach: Processes 8 spatial pixels (x_start to x_start + 8) simultaneously within each output channel (oc8 iteration).
+void conv2dk1_i8_ui8_scalar_partial_width_put(int8_t *input, int8_t *kernels,
+                                              const int32_t input_width, const int32_t input_channels,
+                                              const int32_t output_channels, int32_t input_split,
+                                              int32_t weight_index, int32_t x_start, int32_t oc) {
+    event0();
+    int ic, ic8, oc8;
+
+    static v16acc64 v16acc_partial0;
+    static v16acc64 v16acc_partial1;
+    static v16acc64 v16acc_partial2;
+    static v16acc64 v16acc_partial3;
+    static v16acc64 v16acc_partial4;
+    static v16acc64 v16acc_partial5;
+    static v16acc64 v16acc_partial6;
+    static v16acc64 v16acc_partial7;
+    static v16acc64 v16acc_partial8;
+
+    // Array of pointers to the accumulators
+    v16acc64* accumulators[] = {
+        &v16acc_partial0, &v16acc_partial1, &v16acc_partial2, &v16acc_partial3,
+        &v16acc_partial4, &v16acc_partial5, &v16acc_partial6, &v16acc_partial7,
+        &v16acc_partial8
+    };
+
+    // Determine the start and end of the loop based on the chunk index for weights
+    const int input_channel_chunk_size = input_channels / input_split;
+    const int start_ic = weight_index * input_channel_chunk_size;
+    const int end_ic =  start_ic + input_channel_chunk_size;
+
+    // Use an array to hold partial sums for 8 pixels
+    v16int32 v16vec_partial[8] = {}; 
+
+    for (oc8 = 0; oc8 < 8; oc8++) {
+      int sum[8] = {0};
+        int current_sum[8] = {0};
+        int sum_srs[8] = {0};
+        int last_sum[8] = {0};
+        if (weight_index != 0 && oc8==0) {  // Preload vector register with partial sum from previous iteration
+            for (int pixel = 0; pixel < 8; pixel++) {
+                int x = x_start + pixel;
+                if (x < input_width) {
+                    v16vec_partial[pixel] = lsrs(*accumulators[pixel],0,0); 
+                }
+            }
+        }
+        
+        // Current iteration: go over all the input channels
+        for (ic = start_ic / 8; ic < end_ic / 8; ic++) {
+            for (ic8 = 0; ic8 < 8; ic8++) {
+                for (int pixel = 0; pixel < 8; pixel++) {
+                    int x = x_start + pixel;
+                    if (x < input_width) {
+                        int val = input[(ic * input_width * 8) + (x * 8) + ic8];
+                        int k = kernels[(oc * (input_channel_chunk_size / 8) * 64) +
+                                        ((ic - start_ic / 8) * 64) + (ic8 * 8) + oc8];
+                        current_sum[pixel] += val * k;
+                    }
+                }
+            }
+        }
+        
+
+        if (weight_index != 0) {  // Extract the partial sum
+            for (int pixel = 0; pixel < 8; pixel++) {
+                int x = x_start + pixel;
+                if (x < input_width) {
+                    last_sum[pixel] = ext_elem(v16vec_partial[pixel], oc8);
+                }
+            }
+        }
+
+        // Transfer scalar sum to vector
+        for (int pixel = 0; pixel < 8; pixel++) {
+            int x = x_start + pixel;
+            if (x < input_width) {
+                sum[pixel] = current_sum[pixel] + last_sum[pixel];
+                v16vec_partial[pixel] = upd_elem(v16vec_partial[pixel], oc8, sum[pixel]);
+            }
+        }
+
+        if (oc8==7 && end_ic==input_channels/2) { // if final set of input channels, send the output
+            for (int pixel = 0; pixel < 8; pixel++) {
+                int x = x_start + pixel;
+                if (x < input_width) {
+                    *accumulators[pixel] = lups(v16vec_partial[pixel], 0);
+                    put_mcd(*accumulators[pixel] ); //push over cascade
+                }
+            }
+        }
+
+        if (oc8 == 7 && end_ic != input_channels/2) { // end of vectorization
+            for (int pixel = 0; pixel < 8; pixel++) {
+                int x = x_start + pixel;
+                if (x < input_width) {
+                    *accumulators[pixel] = lups(v16vec_partial[pixel], 0);
+                }
+            }
+        }
+    }
+
+    event1();
+}
+
+
+#endif
+
 #ifdef PARTIAL_PUT_I8_CAS
+// Output Channel First Approach: Iterates over each output channel (oc) first and then processes all pixels (x) within that output channel iteration.
 void conv2dk1_i8_scalar_partial_put(int8_t *input, int8_t *kernels,
                                         const int32_t input_width, const int32_t input_channels,
                                         const int32_t output_channels, int32_t input_split,
@@ -58,19 +169,10 @@ void conv2dk1_i8_scalar_partial_put(int8_t *input, int8_t *kernels,
   const int end_ic =  start_ic + input_channel_chunk_size;
   for (oc = 0; oc < output_channels / 8; oc++) {
   // for (x = 0; x < input_width; x++) { // col of output image
-    v16acc64& accumulator = *accumulators[oc];
+    v16acc64& accumulator = *accumulators[oc%9];
     v16int32 v16vec_partial = lsrs(accumulator,0,0); 
     int value_index = 0;
     v16acc64 acc_cas = undef_v16acc64();
-    
-    // for (oc8 = 0; oc8 < 8; oc8++) {
-    //   v16vec_partial=upd_elem(v16vec_partial, value_index, 1); 
-    //   value_index++; 
-    //   if(oc8==7){ //if final set of input channels, scale the final output
-    //         acc_cas= lups(v16vec_partial,0);
-    //         put_mcd(acc_cas); //push over cascade
-    //   }
-    // } 
 
     for (oc8 = 0; oc8 < 8; oc8++) {
       int sum = 0;
@@ -415,6 +517,20 @@ event1();
 // conv2d 1x1 wrappers
 //*****************************************************************************
 extern "C" {
+
+#ifdef PARTIAL_PUT_I8_CAS_WIDTH
+void conv2dk1_i8_ui8_partial_width_put(int8_t *input, int8_t *kernels,
+                                              const int32_t input_width, const int32_t input_channels,
+                                              const int32_t output_channels, int32_t input_split,
+                                              int32_t weight_index, int32_t x_start, int32_t oc)
+                                              {
+        conv2dk1_i8_ui8_scalar_partial_width_put(input, kernels,
+                                          input_width, input_channels,
+                                          output_channels,  input_split,
+                                          weight_index,  x_start,  oc);
+                                              }
+
+#endif
 
 #ifdef PARTIAL_PUT_I8_CAS
 void conv2dk1_i8_partial_put(int8_t *input, int8_t *kernels,
