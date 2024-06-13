@@ -15,12 +15,12 @@ from aie.extras.context import mlir_mod_ctx
 
 InW1 = 1
 InH1 = 1
-InC = 960
+InC = 16
 
 InW2 = 1
 InH2 = 1
-OutC = 16
-WeightChunks=4
+OutC = 960
+WeightChunks=2
 
 if len(sys.argv) == 3:
     width = int(sys.argv[1])
@@ -242,7 +242,7 @@ def mobilenetBottleneckB():
             def sequence(inputFromL3, weightsFromL3, outputToL3):
                 # NpuWriteRTPOp("rtp02", col=0, row=2, index=0, value=9)
                 # NpuWriteRTPOp("rtp03", col=0, row=3, index=0, value=8)
-                NpuWriteRTPOp("rtp04", col=0, row=4, index=0, value=10)
+                NpuWriteRTPOp("rtp04", col=0, row=4, index=0, value=8)
 
                 
                 npu_dma_memcpy_nd(

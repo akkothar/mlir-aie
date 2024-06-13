@@ -27,11 +27,11 @@ from dolphin import print_dolphin
 
 vectorSize=8
 
-OutC2 = 960
-OutC3 = 16
+OutC2 = 16
+OutC3 = 960
 InW2 = 1
 InH2 = 1
-WeightChunks=4
+WeightChunks=2
 
 def chunk_weights(int_weight, OutC2, WeightChunks):
     chunk_size = OutC2 // WeightChunks
@@ -50,12 +50,14 @@ def reorder_and_concatenate_chunks(int_weight, OutC2, WeightChunks, ds, dtype_wt
     # Reorder each chunk
     reordered_chunks = []
     for idx, chunk in enumerate(chunks):
+        print(chunk.shape)
         reordered_chunk = ds.reorder_mat(chunk.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX")
         reordered_chunks.append(reordered_chunk)
     
     # Concatenate the reordered chunks
+    print(len(reordered_chunks))
     total_wts = np.concatenate(reordered_chunks, axis=None)
-    
+    print(total_wts.shape)
     return total_wts
 
 
@@ -199,7 +201,7 @@ def main(opts):
 
     q_bottleneck_out = model(input)
     golden_output = q_bottleneck_out.int(float_datatype=True).data.numpy().astype(dtype_out)
-    print("Golden::Brevitas::", golden_output)
+    # print("Golden::Brevitas::", golden_output)
     # print("Input: ", input.shape)
   
     # extract int input
@@ -258,9 +260,9 @@ def main(opts):
     wts3_put_HALF = ds.reorder_mat(
         int_weight_3_HALF.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
     )
-    print("********************BN13*******************************")
-    print("combined_scale_HALF after conv1x1:", combined_scale3_HALF.item())
-    print("*************************************************")
+    # print("********************BN13*******************************")
+    # print("combined_scale_HALF after conv1x1:", combined_scale3_HALF.item())
+    # print("*************************************************")
 
 
     int_weight_put=int_weight[:,0:OutC2//2,:,:]
@@ -298,7 +300,7 @@ def main(opts):
         log_folder + "/after_ofm_mem_fmt_final.txt", sep=",", format="%d"
     )
     ofm_mem_fmt_out = torch.from_numpy(ofm_mem_fmt).unsqueeze(0)
-    print("AIE:",ofm_mem_fmt_out)
+    # print("AIE:",ofm_mem_fmt_out)
 
     # ------------------------------------------------------
     # Compare the AIE output and the golden reference
