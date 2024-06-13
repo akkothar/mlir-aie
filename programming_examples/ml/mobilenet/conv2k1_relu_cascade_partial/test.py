@@ -28,7 +28,7 @@ from dolphin import print_dolphin
 vectorSize=8
 
 OutC2 = 960
-OutC3 = 8
+OutC3 = 16
 InW2 = 1
 InH2 = 1
 WeightChunks=4

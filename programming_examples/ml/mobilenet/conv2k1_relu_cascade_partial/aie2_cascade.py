@@ -19,7 +19,7 @@ InC = 960
 
 InW2 = 1
 InH2 = 1
-OutC = 8
+OutC = 16
 WeightChunks=4
 
 if len(sys.argv) == 3:

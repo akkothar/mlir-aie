@@ -99,7 +99,7 @@ void conv2dk1_i8_scalar_partial_put(int8_t *input, int8_t *kernels,
       v16vec_partial=upd_elem(v16vec_partial, oc8, sum); 
 
 
-      if(oc8==7 && end_ic==input_channel_chunk_size/2){ //if final set of input channels, scale the final output
+      if(oc8==7 && end_ic==input_channels/2){ //if final set of input channels, scale the final output
             acc_cas= lups(v16vec_partial,0);
             put_mcd(acc_cas); //push over cascade
       }

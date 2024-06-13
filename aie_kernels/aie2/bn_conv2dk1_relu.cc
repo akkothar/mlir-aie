@@ -82,7 +82,7 @@ event0();
       int sum_srs = 0;
       int last_sum = 0;
 
-      if(oc8==0 && end_ic==input_channel_chunk_size){ //if final set of input channels, scale the final output
+      if(oc8==0 && end_ic== input_channels){ //if final set of input channels, scale the final output
             // Get cascade sum
             acc_cas=get_scd_v16acc64(); // Get the accumulated values
             vec_cas= lsrs(acc_cas,0,0); // Convert accumulator to vector
