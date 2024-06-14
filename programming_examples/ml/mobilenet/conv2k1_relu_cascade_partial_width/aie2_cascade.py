@@ -12,15 +12,17 @@ from aie.dialects.aiex import *
 from aie.dialects.scf import *
 from aie.extras.dialects.ext import memref, arith
 from aie.extras.context import mlir_mod_ctx
+import math
 
+InW2 = 8
 InW1 = 8
 InH1 = 1
 InC = 960
 OutC = 8
-InW2 = 8
 InH2 = 1
 
 WeightChunks=2
+RepeatChannels=math.floor(1)
 
 if len(sys.argv) == 3:
     width = int(sys.argv[1])
@@ -139,12 +141,10 @@ def mobilenetBottleneckB():
             )
            
             object_fifo_link(OF_wts_L3L2, [OF_wts_memtile_put,OF_wts_memtile_get],[],[0,InC//2 * OutC])
-
+            # OF_wts_memtile_put.set_memtile_repeat(RepeatChannels)
+            # OF_wts_memtile_get.set_memtile_repeat(RepeatChannels)
         
             # Set up compute tiles
-
-            # rtp02 = Buffer(ComputeTile02, [16], T.i32(), "rtp02")
-            # rtp03 = Buffer(ComputeTile03, [16], T.i32(), "rtp03")
             rtp04 = Buffer(ComputeTile04, [16], T.i32(), "rtp04")
 
 

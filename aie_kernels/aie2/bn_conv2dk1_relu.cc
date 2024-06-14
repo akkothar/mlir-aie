@@ -61,6 +61,7 @@ void conv2dk1_i8_ui8_scalar_partial_width_get(int8_t *input, int8_t *kernels, ui
 
     // Use an array to hold partial sums for 8 pixels
     v16int32 v16vec_partial[8] = {}; 
+    v16int32 v16vec_cas[8] = {}; 
 
     for (oc8 = 0; oc8 < 8; oc8++) {
         int sum[8] = {0};
@@ -74,8 +75,7 @@ void conv2dk1_i8_ui8_scalar_partial_width_get(int8_t *input, int8_t *kernels, ui
             for (int pixel = 0; pixel < 8; pixel++) {
                 int x = x_start + pixel;
                 if (x < input_width) {
-                    *accumulators[pixel] = get_scd_v16acc64();
-                    v16vec_partial[pixel] = lsrs(*accumulators[pixel],0,0); 
+                    v16vec_cas[pixel] = lsrs(get_scd_v16acc64(),0,0); 
                 }
             }
       }
@@ -124,7 +124,8 @@ void conv2dk1_i8_ui8_scalar_partial_width_get(int8_t *input, int8_t *kernels, ui
             for (int pixel = 0; pixel < 8; pixel++) {
                 int x = x_start + pixel;
                 if (x < input_width) {
-                    cascade_sum=ext_elem(v16vec_partial[pixel], oc8);
+                    cascade_sum=ext_elem(v16vec_cas[pixel], oc8);
+                    // sum_srs[pixel] = ((cascade_sum) + (1 << (scale - 1))) >> scale;
                     sum_srs[pixel] = ((sum[pixel]+cascade_sum) + (1 << (scale - 1))) >> scale;
                     sum_srs[pixel] = (sum_srs[pixel] > UMAX) ? UMAX : (sum_srs[pixel] < 0) ? 0 : sum_srs[pixel];
                     output[(oc * input_width * 8) + (x * 8) + oc8] = sum_srs[pixel];

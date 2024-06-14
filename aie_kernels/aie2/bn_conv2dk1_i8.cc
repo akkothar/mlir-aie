@@ -61,20 +61,13 @@ void conv2dk1_i8_ui8_scalar_partial_width_put(int8_t *input, int8_t *kernels,
 
     // Use an array to hold partial sums for 8 pixels
     v16int32 v16vec_partial[8] = {}; 
-
+  
     for (oc8 = 0; oc8 < 8; oc8++) {
-      int sum[8] = {0};
+        int sum[8] = {0};
         int current_sum[8] = {0};
         int sum_srs[8] = {0};
         int last_sum[8] = {0};
-        if (weight_index != 0 && oc8==0) {  // Preload vector register with partial sum from previous iteration
-            for (int pixel = 0; pixel < 8; pixel++) {
-                int x = x_start + pixel;
-                if (x < input_width) {
-                    v16vec_partial[pixel] = lsrs(*accumulators[pixel],0,0); 
-                }
-            }
-        }
+        
         
         // Current iteration: go over all the input channels
         for (ic = start_ic / 8; ic < end_ic / 8; ic++) {
@@ -90,8 +83,16 @@ void conv2dk1_i8_ui8_scalar_partial_width_put(int8_t *input, int8_t *kernels,
                 }
             }
         }
-        
 
+        if (weight_index != 0 && oc8==0) {  // Preload vector register with partial sum from previous iteration
+            for (int pixel = 0; pixel < 8; pixel++) {
+                int x = x_start + pixel;
+                if (x < input_width) {
+                    v16vec_partial[pixel] = lsrs(*accumulators[pixel],0,0); 
+                }
+            }
+        }
+        
         if (weight_index != 0) {  // Extract the partial sum
             for (int pixel = 0; pixel < 8; pixel++) {
                 int x = x_start + pixel;
@@ -114,8 +115,7 @@ void conv2dk1_i8_ui8_scalar_partial_width_put(int8_t *input, int8_t *kernels,
             for (int pixel = 0; pixel < 8; pixel++) {
                 int x = x_start + pixel;
                 if (x < input_width) {
-                    *accumulators[pixel] = lups(v16vec_partial[pixel], 0);
-                    put_mcd(*accumulators[pixel] ); //push over cascade
+                    put_mcd(lups(v16vec_partial[pixel], 0)); //push over cascade
                 }
             }
         }
