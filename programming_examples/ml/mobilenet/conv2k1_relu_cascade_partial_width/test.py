@@ -25,20 +25,34 @@ torch.use_deterministic_algorithms(True)
 torch.manual_seed(0)
 from dolphin import print_dolphin
 
+vectorSize=8
 
-def chunk_weights(int_weight, OutC2, WeightChunks):
+OutC2 = 160
+OutC3 = 120
+InW2 = 8
+InH2 = 1
+WeightChunks=2 #2 splits for input channel and then output 
+# OutC2 = OutC1
+
+def chunk_weights_depth_cascade(int_weight, OutC2, WeightChunks):
     chunk_size = OutC2 // WeightChunks
     chunks = []
+    input_channels = int_weight.shape[1]
+    output_channels = int_weight.shape[0]
+
     for i in range(WeightChunks):
         start_index = i * chunk_size
-        end_index = OutC2 if i == WeightChunks - 1 else (i + 1) * chunk_size
-        chunk = int_weight[:, start_index:end_index, :, :]
-        chunks.append(chunk)
+        end_index = input_channels if i == WeightChunks - 1 else (i + 1) * chunk_size
+        for out_c_start in range(0, output_channels, 8):
+            out_c_end = min(out_c_start + 8, output_channels)
+            chunk = int_weight[out_c_start:out_c_end, start_index:end_index, :, :]
+            print("oc={}:{},ic={}:{}".format(out_c_start,out_c_end,start_index,end_index))
+            chunks.append(chunk)
     return chunks
 
 def reorder_and_concatenate_chunks(int_weight, OutC2, WeightChunks, ds, dtype_wts):
     # Chunk the weights
-    chunks = chunk_weights(int_weight, OutC2, WeightChunks)
+    chunks = chunk_weights_depth_cascade(int_weight, OutC2, WeightChunks)
     
     # Reorder each chunk
     reordered_chunks = []
@@ -48,17 +62,10 @@ def reorder_and_concatenate_chunks(int_weight, OutC2, WeightChunks, ds, dtype_wt
     
     # Concatenate the reordered chunks
     total_wts = np.concatenate(reordered_chunks, axis=None)
+    print(int_weight.shape)
+    print(total_wts.shape)
     
     return total_wts
-
-vectorSize=8
-
-OutC2 = 960
-OutC3 = 8
-InW2 = 8
-InH2 = 1
-WeightChunks=2
-# OutC2 = OutC1
 
 
 InC_vec =  math.floor(OutC2/vectorSize)
@@ -224,8 +231,11 @@ def main(opts):
     before_input.tofile(
         log_folder + "/before_ifm_mem_fmt_1x1.txt", sep=",", format="%d"
     )
-    if(InW2>1):
+    if(InW2>1 and InH2==1):
         ifm_mem_fmt = ds.reorder_mat(before_input, "CXC8", "CX")
+    elif(InW2>1 and InH2>1):
+            ifm_mem_fmt = ds.reorder_mat(before_input, "YCXC8", "CYX")
+
     else:
         ifm_mem_fmt = ds.reorder_mat(before_input, "CC8", "C")
     ifm_mem_fmt.tofile(log_folder + "/after_ifm_mem_fmt_1x1.txt", sep=",", format="%d")

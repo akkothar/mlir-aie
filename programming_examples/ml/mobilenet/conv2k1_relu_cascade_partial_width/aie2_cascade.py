@@ -17,12 +17,14 @@ import math
 InW2 = 8
 InW1 = 8
 InH1 = 1
-InC = 960
-OutC = 8
 InH2 = 1
-
+InC = 160
+OutC = 120
+InputSplit=2
+OutputSplit=OutC//8 #calculate 8 OCs at a time, should increase to more
 WeightChunks=2
-RepeatChannels=math.floor(1)
+
+RepeatChannels=math.floor(InH1*(InW2//8))
 
 if len(sys.argv) == 3:
     width = int(sys.argv[1])
@@ -52,7 +54,7 @@ def mobilenetBottleneckB():
          
             # define wts
             ty_wts = MemRefType.get(
-                (InC//WeightChunks * OutC,), int8_ty
+                ((InC * OutC)//(InputSplit*OutputSplit),), int8_ty
             )
             ty_all_wts= MemRefType.get(
                 (
@@ -140,9 +142,9 @@ def mobilenetBottleneckB():
                 ty_wts,
             )
            
-            object_fifo_link(OF_wts_L3L2, [OF_wts_memtile_put,OF_wts_memtile_get],[],[0,InC//2 * OutC])
-            # OF_wts_memtile_put.set_memtile_repeat(RepeatChannels)
-            # OF_wts_memtile_get.set_memtile_repeat(RepeatChannels)
+            object_fifo_link(OF_wts_L3L2, [OF_wts_memtile_put,OF_wts_memtile_get],[],[0,(InC * OutC)//2])
+            OF_wts_memtile_put.set_memtile_repeat(RepeatChannels)
+            OF_wts_memtile_get.set_memtile_repeat(RepeatChannels)
         
             # Set up compute tiles
             rtp04 = Buffer(ComputeTile04, [16], T.i32(), "rtp04")
@@ -160,8 +162,10 @@ def mobilenetBottleneckB():
                     
                     for _ in for_(InH2):
                         elemIn = inOF_act_L3L2.acquire(ObjectFifoPort.Consume, 1)
-                        for oc in range(0,OutC//8):
-                            for WeightIndex in range (0,WeightChunks//2):
+                        for oc in range(0,OutputSplit):
+                        # for oc in for_(OutputSplit):
+                            # oc_cast= arith.IndexCastOp(T.i32(), oc)
+                            for WeightIndex in range (0,InputSplit//2):
                                 elemWts = OF_wts_memtile_put.acquire(ObjectFifoPort.Consume, 1)
                                 for x_start in range(0,InW2,8):
                                     call(
@@ -172,13 +176,14 @@ def mobilenetBottleneckB():
                                             arith.constant(InW2),
                                             arith.constant(InC),
                                             arith.constant(OutC),
-                                            WeightChunks,
+                                            InputSplit,
                                             WeightIndex,
                                             x_start,
                                             oc
                                         ],
                                     )
                                 objectfifo_release(ObjectFifoPort.Consume, "OF_wts_memtile_put", 1)
+                            # yield_([])
                         objectfifo_release(ObjectFifoPort.Consume, "inOF_act_L3L2", 1)
                         
                         yield_([])
@@ -194,8 +199,10 @@ def mobilenetBottleneckB():
                         elemOut0 = out_04_L2.acquire(ObjectFifoPort.Produce, 1)
                         
                         scale = memref.load(rtp04, [0])
-                        for oc in range(0,OutC//8):
-                            for WeightIndex in range (WeightChunks//2,WeightChunks ):
+                        for oc in range(0,OutputSplit):
+                        # for oc in for_(OutputSplit):
+                            # oc_cast= arith.IndexCastOp(T.i32(), oc)
+                            for WeightIndex in range (InputSplit//2,InputSplit ):
                                 elemWts = OF_wts_memtile_get.acquire(ObjectFifoPort.Consume, 1)
                                 for x_start in range(0,InW2,8):
                                     call(
@@ -208,13 +215,14 @@ def mobilenetBottleneckB():
                                             arith.constant(InC),
                                             arith.constant(OutC),
                                             scale,
-                                            WeightChunks,
+                                            InputSplit,
                                             WeightIndex,
                                             x_start,
                                             oc
                                         ],
                                     )
                                 objectfifo_release(ObjectFifoPort.Consume, "OF_wts_memtile_get", 1)
+                            # yield_([])
                         objectfifo_release(ObjectFifoPort.Consume, "inOF_act_L3L2", 1)
                         objectfifo_release(ObjectFifoPort.Produce, "out_04_L2", 1)
                         
@@ -242,7 +250,7 @@ def mobilenetBottleneckB():
 
             @FuncOp.from_py_func(activationsInL3_ty, weightsInL3_ty, activationsOutL3_ty)
             def sequence(inputFromL3, weightsFromL3, outputToL3):
-                NpuWriteRTPOp("rtp04", col=0, row=4, index=0, value=10)
+                NpuWriteRTPOp("rtp04", col=0, row=4, index=0, value=9)
 
                 
                 npu_dma_memcpy_nd(
