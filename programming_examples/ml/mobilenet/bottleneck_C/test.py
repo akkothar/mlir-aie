@@ -26,8 +26,8 @@ torch.use_deterministic_algorithms(True)
 torch.manual_seed(0)
 vectorSize=8
 
-bneck_13_InW1 = 8
-bneck_13_InH1 = 1
+bneck_13_InW1 = 7
+bneck_13_InH1 = 7
 bneck_13_InC1 = 160
 bneck_13_OutC1 = 120
 WeightChunks=2 #2 splits for input channel and then output 
@@ -78,6 +78,8 @@ def reorder_and_concatenate_chunks(int_weight, InC, WeightChunks, ds, dtype_wts)
     return total_wts
 
 
+
+wts_size=(bneck_13_OutC1*bneck_13_InC1)
 wts_size=(bneck_13_OutC1*bneck_13_InC1)+(3*3*bneck_13_OutC2)
 
 def main(opts):
@@ -190,8 +192,8 @@ def main(opts):
             out_q = self.quant_id_1(x)
             out = self.bn13_quant_conv1(out_q)
             out = self.bn13_quant_relu1(out)
-            # out = self.bn13_quant_conv2(out)
-            # out = self.bn13_quant_relu2(out)
+            out = self.bn13_quant_conv2(out)
+            out = self.bn13_quant_relu2(out)
             # out = self.bn13_quant_conv3(out)
             # out = self.quant_id_1(out)
             # out=out+out_q
