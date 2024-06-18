@@ -14,17 +14,17 @@ from aie.extras.dialects.ext import memref, arith
 from aie.extras.context import mlir_mod_ctx
 import math
 
-InW2 = 8
-InW1 = 8
-InH1 = 1
-InH2 = 1
+InW2 = 7
+InW1 = 7
+InH1 = 7
+InH2 = 7
 InC = 160
-OutC = 120
+OutC = 16
 InputSplit=2
 OutputSplit=OutC//8 #calculate 8 OCs at a time, should increase to more
 WeightChunks=2
 
-RepeatChannels=math.floor(InH1*(InW2//8))
+RepeatChannels=math.floor(InH1)
 
 if len(sys.argv) == 3:
     width = int(sys.argv[1])
@@ -54,7 +54,7 @@ def mobilenetBottleneckB():
          
             # define wts
             ty_wts = MemRefType.get(
-                ((InC * OutC)//(InputSplit*OutputSplit),), int8_ty
+                ((InC * 8)//(InputSplit),), int8_ty
             )
             ty_all_wts= MemRefType.get(
                 (
@@ -75,8 +75,9 @@ def mobilenetBottleneckB():
 # HERE
             
    
+            
             conv2dk1_get = external_func(
-                "conv2dk1_i8_ui8_partial_width_get",
+                "bn13_1_conv2dk1_i8_ui8_partial_width_get",
                 inputs=[
                     ty_in,
                     ty_wts,
@@ -92,7 +93,7 @@ def mobilenetBottleneckB():
                 ],
             )
             conv2dk1_put = external_func(
-                "conv2dk1_i8_ui8_partial_width_put",
+                "bn13_1_conv2dk1_i8_ui8_partial_width_put",
                 inputs=[
                     ty_in,
                     ty_wts,
@@ -162,12 +163,12 @@ def mobilenetBottleneckB():
                     
                     for _ in for_(InH2):
                         elemIn = inOF_act_L3L2.acquire(ObjectFifoPort.Consume, 1)
-                        for oc in range(0,OutputSplit):
-                        # for oc in for_(OutputSplit):
-                            # oc_cast= arith.IndexCastOp(T.i32(), oc)
+                        # for oc in range(0,OutputSplit):
+                        for oc in for_(OutputSplit):
+                            oc_cast= arith.IndexCastOp(T.i32(), oc)
                             for WeightIndex in range (0,InputSplit//2):
                                 elemWts = OF_wts_memtile_put.acquire(ObjectFifoPort.Consume, 1)
-                                for x_start in range(0,InW2,8):
+                                for x_start in range(0,InW2,7):
                                     call(
                                         conv2dk1_put,
                                         [
@@ -179,11 +180,11 @@ def mobilenetBottleneckB():
                                             InputSplit,
                                             WeightIndex,
                                             x_start,
-                                            oc
+                                            oc_cast
                                         ],
                                     )
                                 objectfifo_release(ObjectFifoPort.Consume, "OF_wts_memtile_put", 1)
-                            # yield_([])
+                            yield_([])
                         objectfifo_release(ObjectFifoPort.Consume, "inOF_act_L3L2", 1)
                         
                         yield_([])
@@ -199,12 +200,12 @@ def mobilenetBottleneckB():
                         elemOut0 = out_04_L2.acquire(ObjectFifoPort.Produce, 1)
                         
                         scale = memref.load(rtp04, [0])
-                        for oc in range(0,OutputSplit):
-                        # for oc in for_(OutputSplit):
-                            # oc_cast= arith.IndexCastOp(T.i32(), oc)
+                        # for oc in range(0,OutputSplit):
+                        for oc in for_(OutputSplit):
+                            oc_cast= arith.IndexCastOp(T.i32(), oc)
                             for WeightIndex in range (InputSplit//2,InputSplit ):
                                 elemWts = OF_wts_memtile_get.acquire(ObjectFifoPort.Consume, 1)
-                                for x_start in range(0,InW2,8):
+                                for x_start in range(0,InW2,7):
                                     call(
                                         conv2dk1_get,
                                         [
@@ -218,11 +219,11 @@ def mobilenetBottleneckB():
                                             InputSplit,
                                             WeightIndex,
                                             x_start,
-                                            oc
+                                            oc_cast
                                         ],
                                     )
                                 objectfifo_release(ObjectFifoPort.Consume, "OF_wts_memtile_get", 1)
-                            # yield_([])
+                            yield_([])
                         objectfifo_release(ObjectFifoPort.Consume, "inOF_act_L3L2", 1)
                         objectfifo_release(ObjectFifoPort.Produce, "out_04_L2", 1)
                         

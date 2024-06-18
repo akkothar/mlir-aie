@@ -18,12 +18,13 @@ build/${mlirFileName}.mlir: ${srcdir}/${mlirFileName}.py
 	mkdir -p ${@D}
 	python3 $< > $@
 
+build/conv2dk1_get.o: bn_conv2dk1_relu.cc
+	xchesscc -d ${CHESSCC2_FLAGS} -DBN13_1_PARTIAL_GET_I8_CAS_WIDTH -c $< -o $@
 
 build/conv2dk1_put.o: bn_conv2dk1_i8.cc
-	xchesscc -d ${CHESSCC2_FLAGS} -DPARTIAL_PUT_I8_CAS_WIDTH -c $< -o $@
+	xchesscc -d ${CHESSCC2_FLAGS} -DBN13_1_PARTIAL_PUT_I8_CAS_WIDTH -c $< -o $@
 
-build/conv2dk1_get.o: bn_conv2dk1_relu.cc
-	xchesscc -d ${CHESSCC2_FLAGS} -DPARTIAL_GET_I8_CAS_WIDTH -c $< -o $@
+
 
 clean:
 	rm -rf build *.elf* *.lst *.bif ${mlirFileName}.mlir.prj log .xclbin sim \

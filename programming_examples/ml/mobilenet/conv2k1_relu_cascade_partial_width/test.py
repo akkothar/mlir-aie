@@ -28,9 +28,9 @@ from dolphin import print_dolphin
 vectorSize=8
 
 OutC2 = 160
-OutC3 = 120
-InW2 = 8
-InH2 = 1
+OutC3 = 16
+InW2 = 7
+InH2 = 7
 WeightChunks=2 #2 splits for input channel and then output 
 # OutC2 = OutC1
 
