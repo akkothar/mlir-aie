@@ -28,8 +28,8 @@ vectorSize=8
 
 bneck_13_InW1 = 7
 bneck_13_InH1 = 7
-bneck_13_InC1 = 160
-bneck_13_OutC1 = 120
+bneck_13_InC1 = 256
+bneck_13_OutC1 = 128
 WeightChunks=2 #2 splits for input channel and then output 
 
 bneck_13_InW2 = bneck_13_InW1
@@ -38,7 +38,7 @@ bneck_13_OutC2 = bneck_13_OutC1
 
 bneck_13_InW3 = bneck_13_InW1
 bneck_13_InH3 = bneck_13_InH1
-bneck_13_OutC3 = 160
+bneck_13_OutC3 = 64
 
 bneck_13_InC1_vec =  math.floor(bneck_13_InC1/vectorSize)
 bneck_13_OutC2_vec =  math.floor(bneck_13_OutC2/vectorSize)
@@ -79,7 +79,7 @@ def reorder_and_concatenate_chunks(int_weight, InC, WeightChunks, ds, dtype_wts)
 
 
 
-wts_size=(bneck_13_OutC1*bneck_13_InC1)
+# wts_size=(bneck_13_OutC1*bneck_13_InC1)
 wts_size=(bneck_13_OutC1*bneck_13_InC1)+(3*3*bneck_13_OutC2)
 
 def main(opts):
@@ -105,6 +105,7 @@ def main(opts):
     dtype_wts = np.dtype("int8")
     dtype_out = np.dtype("uint8")
     print(wts_size)
+
     shape_total_wts = (wts_size, 1)
     shape_in_act = (bneck_13_InH1, bneck_13_InC1_vec, bneck_13_InW1, vectorSize)  #'YCXC8' , 'CYX'
     shape_out = (bneck_13_InH1, bneck_13_OutC2_vec, bneck_13_InW1, vectorSize) #bneck_12_OutC3/8
@@ -289,7 +290,7 @@ def main(opts):
     )
 
 
-    total_wts = np.concatenate((bn13_wts1, bn13_wts2), axis=None)
+    total_wts = np.concatenate((bn13_wts1,bn13_wts2), axis=None)
 
 
     total_wts.tofile(log_folder + "/after_weights_mem_fmt_final.txt", sep=",", format="%d")
