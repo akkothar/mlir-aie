@@ -21,6 +21,13 @@ from brevitas.quant.fixed_point import (
     Int8WeightPerTensorFixedPoint,
     Uint8ActPerTensorFixedPoint,
 )
+def convert_to_numpy(array):
+    if isinstance(array, np.ndarray):
+        return array
+    elif isinstance(array, torch.Tensor):
+        return array.cpu().numpy()
+    else:
+        raise TypeError("Unsupported array type")
 torch.use_deterministic_algorithms(True)
 torch.manual_seed(0)
 from dolphin import print_dolphin
@@ -28,11 +35,39 @@ from dolphin import print_dolphin
 vectorSize=8
 
 OutC2 = 160
-OutC3 = 16
+OutC3 = 960
 InW2 = 7
-InH2 = 7
+InH2 = 8
 WeightChunks=2 #2 splits for input channel and then output 
 # OutC2 = OutC1
+
+
+def chunk_weights_depth_cascade(int_weight, OutC2, WeightChunks):
+    chunk_size = OutC2 // WeightChunks
+    chunks = []
+    input_channels = int_weight.shape[1]
+    output_channels = int_weight.shape[0]
+
+    mid_index = input_channels // 2
+
+    for i in range(WeightChunks):
+        if i % 2 == 0:
+            # Alternating chunk from the beginning
+            start_index = (i // 2) * chunk_size
+            end_index = mid_index if i == WeightChunks - 1 else min(mid_index, start_index + chunk_size)
+        else:
+            # Alternating chunk from the middle
+            start_index = mid_index + ((i // 2) * chunk_size)
+            end_index = input_channels if i == WeightChunks - 1 else min(input_channels, start_index + chunk_size)
+
+        for out_c_start in range(0, output_channels, 8):
+            out_c_end = min(out_c_start + 8, output_channels)
+            chunk = int_weight[out_c_start:out_c_end, start_index:end_index, :, :]
+            print("oc={}:{},ic={}:{}".format(out_c_start, out_c_end, start_index, end_index))
+            chunks.append(chunk)
+
+    return chunks
+
 
 def chunk_weights_depth_cascade(int_weight, OutC2, WeightChunks):
     chunk_size = OutC2 // WeightChunks
@@ -52,7 +87,12 @@ def chunk_weights_depth_cascade(int_weight, OutC2, WeightChunks):
 
 def reorder_and_concatenate_chunks(int_weight, OutC2, WeightChunks, ds, dtype_wts):
     # Chunk the weights
+
+
+
     chunks = chunk_weights_depth_cascade(int_weight, OutC2, WeightChunks)
+
+
     
     # Reorder each chunk
     reordered_chunks = []
@@ -205,7 +245,7 @@ def main(opts):
 
     q_bottleneck_out = model(input)
     golden_output = q_bottleneck_out.int(float_datatype=True).data.numpy().astype(dtype_out)
-    print("Golden::Brevitas::", golden_output)
+    # print("Golden::Brevitas::", golden_output)
     # print("Input: ", input.shape)
   
     # extract int input
@@ -243,6 +283,12 @@ def main(opts):
     int_weight = model.quant_conv3.quant_weight().int(
         float_datatype=True
     )
+    wts3_full_put = ds.reorder_mat(
+        int_weight[:,0:OutC2//2,:,:].data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
+    )
+    wts3_full_get = ds.reorder_mat(
+        int_weight[:,OutC2//2:OutC2,:,:].data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
+    )
     total_wts = reorder_and_concatenate_chunks(int_weight, OutC2, WeightChunks, ds, dtype_wts)
     # ------------------------------------------------------
     # HALF
@@ -250,8 +296,8 @@ def main(opts):
     quant_bottleneck_model_HALF = QuantBottleneck_HALF(expand=OutC2//2,project=OutC3)
     quant_bottleneck_model_HALF.eval()
 
-    q_bottleneck_out_HALF = quant_bottleneck_model_HALF(input[:,0:OutC2//2,:,:])
-    # q_bottleneck_out_HALF = quant_bottleneck_model_HALF(input[:,OutC2//2:OutC2,:,:])
+    # q_bottleneck_out_HALF = quant_bottleneck_model_HALF(input[:,0:OutC2//2,:,:])
+    q_bottleneck_out_HALF = quant_bottleneck_model_HALF(input[:,OutC2//2:OutC2,:,:])
     golden_output_HALF = q_bottleneck_out_HALF.int(float_datatype=True).data.numpy().astype(dtype_out)
     # print("Golden_HALF::Brevitas::", golden_output_HALF)
 
@@ -264,7 +310,7 @@ def main(opts):
     int_weight_3_HALF = quant_bottleneck_model_HALF.quant_conv3.quant_weight().int(
         float_datatype=True
     )
-    wts3_put_HALF = ds.reorder_mat(
+    wts3_HALF = ds.reorder_mat(
         int_weight_3_HALF.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
     )
     # print("********************BN13*******************************")
@@ -274,9 +320,10 @@ def main(opts):
 
     
 
-    # total_wts = np.concatenate((wts3_put_HALF,wts3_put_HALF), axis=None)
+    # total_wts = np.concatenate((wts3_HALF,wts3_HALF), axis=None)
     # wts1 = ds.reorder_mat(int_weight.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX")
     # total_wts = np.concatenate((wts1), axis=None)
+    total_wts = np.concatenate((wts3_full_put,wts3_full_get), axis=None)
     total_wts.tofile(log_folder + "/weights_mem_fmt_final.txt", sep=",", format="%d")
 
     # ------------------------------------------------------
@@ -299,7 +346,7 @@ def main(opts):
         log_folder + "/after_ofm_mem_fmt_final.txt", sep=",", format="%d"
     )
     ofm_mem_fmt_out = torch.from_numpy(ofm_mem_fmt).unsqueeze(0)
-    print("AIE:",ofm_mem_fmt_out)
+    # print("AIE:",ofm_mem_fmt_out)
 
     # ------------------------------------------------------
     # Compare the AIE output and the golden reference
@@ -311,9 +358,22 @@ def main(opts):
 
     # Check if 'tensor' is all zero
     is_all_zero = torch.allclose(ofm_mem_fmt_out, zeros_tensor)
+    golden_output=convert_to_numpy(golden_output)
+    ofm_mem_fmt_out=convert_to_numpy(ofm_mem_fmt_out)
+    max_difference = np.max((golden_output)-(ofm_mem_fmt_out))
+    print("Max:",max_difference)
+            # Find indices where the arrays differ
+    print(golden_output.shape)
+    if golden_output.shape != ofm_mem_fmt_out.shape:
+        raise ValueError("The input arrays must have the same shape")
+    tolerance = 1
+    different_indices = np.argwhere(np.abs(golden_output - ofm_mem_fmt_out) > tolerance)
+    # Print the values at the differing indices
+    # print(different_indices)
+    # Print the values at the differing indices
     if(is_all_zero):
         print("ALL ZEROS")
-
+    
     if np.allclose(
         ofm_mem_fmt_out,
         golden_output,
@@ -325,6 +385,12 @@ def main(opts):
         exit(0)
     else:
         print("\nFailed.\n")
+        for index in different_indices:
+            idx_tuple = tuple(index)
+            # print(f"Index {idx_tuple}: GOLDEN has {golden_output[idx_tuple]}, AIE has {ofm_mem_fmt_out[idx_tuple]}")
+    
+        
+            
         exit(-1)
 
 

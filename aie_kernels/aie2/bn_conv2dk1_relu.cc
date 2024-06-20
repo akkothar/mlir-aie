@@ -126,8 +126,8 @@ void conv2dk1_ui8_ui8_scalar_input_split_partial_width_get(uint8_t *input, int8_
                 if (x < input_width) {
                     cascade_sum=ext_elem(v16vec_cas[pixel], oc8);
                     // sum_srs[pixel] = ((cascade_sum) + (1 << (scale - 1))) >> scale;
-                    // sum_srs[pixel] = ((sum[pixel]+cascade_sum) + (1 << (scale - 1))) >> scale;
-                    sum_srs[pixel] = ((cascade_sum) + (1 << (scale - 1))) >> scale;
+                    sum_srs[pixel] = ((sum[pixel]+cascade_sum) + (1 << (scale - 1))) >> scale;
+                    // sum_srs[pixel] = ((cascade_sum) + (1 << (scale - 1))) >> scale;
                     // sum_srs[pixel] = ((sum[pixel]) + (1 << (scale - 1))) >> scale;
                     sum_srs[pixel] = (sum_srs[pixel] > UMAX) ? UMAX : (sum_srs[pixel] < 0) ? 0 : sum_srs[pixel];
                     output[(oc * input_width * 8) + (x * 8) + oc8] = sum_srs[pixel];
@@ -179,98 +179,81 @@ void conv2dk1_i8_ui8_scalar_partial_width_get(int8_t *input, int8_t *kernels, ui
         &v16acc_partial8
     };
 
-    // Determine the start and end of the loop based on the chunk index for weights
-    const int input_channel_chunk_size = input_channels / input_split;
-    const int start_ic = weight_index * input_channel_chunk_size;
-    const int end_ic =  start_ic + input_channel_chunk_size;
 
-    // Use an array to hold partial sums for 8 pixels
+    // static v16acc64 v16acc_partial[8]; // Using an array for accumulators
+
+    // Determine the start and end of the loop based on the chunk index for weights
+    int input_channel_chunk_size = input_channels / input_split;
+    int start_ic = weight_index * input_channel_chunk_size;
+    int end_ic =  start_ic + input_channel_chunk_size;
+    int pixel = 0;
+    // Preload vector register with partial sums from previous iteration
+    // v16int32 v16vec_partial[8] = {undef_v16int32(), undef_v16int32(), undef_v16int32(), undef_v16int32(),
+    //                            undef_v16int32(), undef_v16int32(), undef_v16int32(), undef_v16int32()};
+    // v16int32 v16vec_cas[8] = {undef_v16int32(), undef_v16int32(), undef_v16int32(), undef_v16int32(),
+    //                            undef_v16int32(), undef_v16int32(), undef_v16int32(), undef_v16int32()};
+    v16acc64 acc_cas = undef_v16acc64();
     v16int32 v16vec_partial[8] = {}; 
     v16int32 v16vec_cas[8] = {}; 
 
-    for (oc8 = 0; oc8 < 8; oc8++) {
-        int sum[8] = {0};
-        int current_sum[8] = {0};
-        int sum_srs[8] = {0};
-        int last_sum[8] = {0};
-        int cascade_sum = 0;
-
-        if(oc8==0 && end_ic== input_channels){ //if final set of input channels, scale the final output
-            // Get cascade sum
-            for (int pixel = 0; pixel < pixel_limit; pixel++) {
-                int x = x_start + pixel;
-                if (x < input_width) {
-                    v16vec_cas[pixel] = lsrs(get_scd_v16acc64(),0,0); 
-                }
-            }
-      }
-        // Current iteration: go over all the input channels
-        for (ic = start_ic / 8; ic < end_ic / 8; ic++) {
-            for (ic8 = 0; ic8 < 8; ic8++) {
-                for (int pixel = 0; pixel < pixel_limit; pixel++) {
-                    int x = x_start + pixel;
-                    if (x < input_width) {
-                        int val = input[(ic * input_width * 8) + (x * 8) + ic8];
-                        int k = kernels[(0 * (input_channel_chunk_size / 8) * 64) +
-                                        ((ic - start_ic / 8) * 64) + (ic8 * 8) + oc8];
-                        current_sum[pixel] += val * k;
-                    }
-                }
-            }
-        }
-        if (weight_index != 1 && oc8==0) {  // Preload vector register with partial sum from previous iteration
-            for (int pixel = 0; pixel < pixel_limit; pixel++) {
-                int x = x_start + pixel;
-                if (x < input_width) {
-                    v16vec_partial[pixel] = lsrs(*accumulators[pixel],0,0); 
-                }
-            }
-        }
-
-        if (weight_index != 1) {  // Extract the partial sum
-            for (int pixel = 0; pixel < pixel_limit; pixel++) {
-                int x = x_start + pixel;
-                if (x < input_width) {
-                    last_sum[pixel] = ext_elem(v16vec_partial[pixel], oc8);
-                }
-            }
-        }
-
-        // Transfer scalar sum to vector
-        for (int pixel = 0; pixel < pixel_limit; pixel++) {
+    if (weight_index > input_split/2 ) {  // Preload vector register with partial sum from previous iteration. If weight is only 1 then we don't have partial sum anyway
+        for ( pixel = 0; pixel < pixel_limit; pixel++) {
             int x = x_start + pixel;
             if (x < input_width) {
-                sum[pixel] = current_sum[pixel] + last_sum[pixel];
-                v16vec_partial[pixel] = upd_elem(v16vec_partial[pixel], oc8, sum[pixel]);
-            }
-        }
-
-        if (end_ic == input_channels) { // if final set of input channels, scale the final output
-            for (int pixel = 0; pixel < pixel_limit; pixel++) {
-                int x = x_start + pixel;
-                if (x < input_width) {
-                    cascade_sum=ext_elem(v16vec_cas[pixel], oc8);
-                    // sum_srs[pixel] = ((cascade_sum) + (1 << (scale - 1))) >> scale;
-                    sum_srs[pixel] = ((sum[pixel]+cascade_sum) + (1 << (scale - 1))) >> scale;
-                    sum_srs[pixel] = (sum_srs[pixel] > UMAX) ? UMAX : (sum_srs[pixel] < 0) ? 0 : sum_srs[pixel];
-                    output[(oc * input_width * 8) + (x * 8) + oc8] = sum_srs[pixel];
-                }
-            }
-        }
-
-        if (oc8 == 7) { // end of vectorization
-            for (int pixel = 0; pixel < pixel_limit; pixel++) {
-                int x = x_start + pixel;
-                if (x < input_width) {
-                    *accumulators[pixel] = lups(v16vec_partial[pixel], 0);
-                }
-            }
+                    v16vec_partial[pixel] = lsrs(*accumulators[pixel],0,0); 
+            } 
         }
     }
 
+    // Process each pixel across all output channels
+    for (pixel = 0; pixel < pixel_limit; pixel++) {
+        // Loop over output channels (oc8)
+            for (oc8 = 0; oc8 < 8; oc8++) {
+                int sum=0;
+                int current_sum = 0;
+                int last_sum= 0;
+                int final_sum = 0;
+                // Loop over input channels in chunks of 8
+                for (ic = start_ic / 8; ic < end_ic / 8; ic++) {
+                    for (ic8 = 0; ic8 < 8; ic8++) {
+                        // int k_base = (0 * (input_channel_chunk_size / 8) * 64) + ((ic - start_ic / 8) * 64) + (ic8 * 8);
+                            int val = input[(ic * input_width * 8) + (pixel * 8) + ic8];
+                            int k = kernels[(0 * (input_channel_chunk_size / 8) * 64) +
+                                            ((ic - start_ic / 8) * 64) + (ic8 * 8) + oc8];
+                            current_sum+= val * k;
+                    }
+                }
+                // Extract the partial sum if applicable
+                if (weight_index > input_split / 2) {
+                        last_sum = ext_elem(v16vec_partial[pixel], oc8);
+                }
+                // Transfer scalar sum to vector
+                sum= current_sum + last_sum;
+                v16vec_partial[pixel] = upd_elem(v16vec_partial[pixel], oc8, sum);
+                if (input_split != (weight_index + 1)) {
+                    *accumulators[pixel] = lups(v16vec_partial[pixel],0);
+                }
+            }
+
+            if (end_ic == input_channels) {
+                // acc_cas=get_scd_v16acc64();
+                // int scale_new=8;
+                v16vec_cas[pixel] = lsrs(get_scd_v16acc64(),0, 0);
+                for (oc8 = 0; oc8 < 8; oc8++) {
+                    int sum = 0;
+                    int sum_srs = 0;
+                    int cascade_sum = 0;
+                    sum = ext_elem(v16vec_partial[pixel], oc8);
+                    cascade_sum=ext_elem(v16vec_cas[pixel], oc8);
+                    sum_srs = ((sum+cascade_sum) + (1 << (scale - 1))) >> scale;
+                    sum_srs= (sum_srs > UMAX) ? UMAX : (sum_srs< 0) ? 0 : sum_srs;
+                    output[(oc * input_width * 8) + (pixel * 8) + oc8] = sum_srs;
+            }
+        }       
+    } 
+
     event1();
 }
-
 #endif
 
 #ifdef PARTIAL_WIDTH
@@ -620,7 +603,9 @@ void conv2dk1_i8_ui8_scalar_cascade_get(
           
           for (ic8 = 0; ic8 < 8; ic8++) {
             int val = input0[(ic * input_width * 8) + (x * 8) + ic8];
-            int k = kernels[(oc * (input_channel_chunk_size / 8) * 64) + ((ic - input_channel_chunk_size / 8) * 64) + (ic8 * 8) + oc8];
+            int k = kernels[(oc * (input_channel_chunk_size / 8) * 64) 
+                            + ((ic - input_channel_chunk_size / 8) * 64) 
+                            + (ic8 * 8) + oc8];
             
             sum[x] += val * k;
           }

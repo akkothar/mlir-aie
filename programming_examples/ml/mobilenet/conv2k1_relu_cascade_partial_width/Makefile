@@ -12,7 +12,7 @@ include ${srcdir}/../../../makefile-common
 mlirFileName = aie2_cascade
 VPATH := ${srcdir}/../../../../aie_kernels/aie2
 
-all: build/conv2dk1_put.o build/conv2dk1_get.o build/final.xclbin
+all: build/conv2dk1_put.o build/conv2dk1_get.o build/final.xclbin run_py
 
 build/${mlirFileName}.mlir: ${srcdir}/${mlirFileName}.py
 	mkdir -p ${@D}
