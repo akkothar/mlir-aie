@@ -16,11 +16,15 @@ VPATH := ${srcdir}/../../../../aie_kernels/aie2
 pythonSource=aie2_bn13_layer2_with_output_split
 testSource=test_layer2
 
-pythonSource=aie2_bn13
+pythonSource=aie2_bn13bn14
 testSource=test
 
-all: build/bn13_1_conv2dk1_put.o build/bn13_1_conv2dk1_get.o build/bn13_conv2dk3_dw.o build/conv2dk1_put.o build/conv2dk1_skip_get.o  build/final.xclbin run_py
+OBJ = build/bn13_1_conv2dk1_put.o build/bn13_1_conv2dk1_get.o build/bn13_conv2dk3_dw.o build/bn13_conv2dk1_put.o build/bn13_conv2dk1_skip_get.o build/bn14_1_conv2dk1_put.o build/bn14_1_conv2dk1_get.o build/bn14_conv2dk3_dw.o build/bn14_conv2dk1_put.o build/bn14_conv2dk1_skip_get.o 
 
+
+all: $(OBJ)  build/final.xclbin run_py
+
+# ************************************** bottlneck 13 **************************************
 
 build/bn13_1_conv2dk1_put.o: bn_conv2dk1_i8.cc
 	xchesscc -d ${CHESSCC2_FLAGS} -DBN13_1_PARTIAL_PUT_I8_CAS_WIDTH -c $< -o $@
@@ -36,15 +40,31 @@ build/bn13_conv2dk3_dw.o: bn_conv2dk3_dw.cc
 # 	xchesscc -d ${CHESSCC2_FLAGS} -DSCALAR -DBN13 -DSTRIDE1 -c $< -o $@
 
 
-build/conv2dk1_put.o: bn_conv2dk1_i8.cc
+build/bn13_conv2dk1_put.o: bn_conv2dk1_i8.cc
 	xchesscc -d ${CHESSCC2_FLAGS} -DBN13_1_INPUT_SPLIT_PARTIAL_PUT_UI8_UI8_CAS_WIDTH -c $< -o $@
 
 # build/conv2dk1_get.o: bn_conv2dk1_relu.cc
 # 	xchesscc -d ${CHESSCC2_FLAGS} -DBN13_1_INPUT_SPLIT_PARTIAL_GET_UI8_UI8_CAS_WIDTH -c $< -o $@
 
-build/conv2dk1_skip_get.o: bn_conv2dk1_skip.cc
+build/bn13_conv2dk1_skip_get.o: bn_conv2dk1_skip.cc
 	xchesscc -d ${CHESSCC2_FLAGS} -DBN13_1_INPUT_SPLIT_PARTIAL_GET_UI8_I8_I8_CAS_WIDTH -c $< -o $@
 
+# ************************************** bottlneck 14 **************************************
+build/bn14_1_conv2dk1_put.o: bn_conv2dk1_i8.cc
+	xchesscc -d ${CHESSCC2_FLAGS} -DBN14_1_PARTIAL_PUT_I8_CAS_WIDTH -c $< -o $@
+
+build/bn14_1_conv2dk1_get.o: bn_conv2dk1_relu.cc
+	xchesscc -d ${CHESSCC2_FLAGS} -DBN14_1_PARTIAL_GET_I8_CAS_WIDTH -c $< -o $@
+
+build/bn14_conv2dk3_dw.o: bn_conv2dk3_dw.cc
+	xchesscc -d ${CHESSCC2_FLAGS} -DSCALAR -DBN14 -DSTRIDE1_OUT_SPLIT -c $< -o $@
+
+
+build/bn14_conv2dk1_put.o: bn_conv2dk1_i8.cc
+	xchesscc -d ${CHESSCC2_FLAGS} -DBN14_1_INPUT_SPLIT_PARTIAL_PUT_UI8_UI8_CAS_WIDTH -c $< -o $@
+
+build/bn14_conv2dk1_skip_get.o: bn_conv2dk1_skip.cc
+	xchesscc -d ${CHESSCC2_FLAGS} -DBN14_1_INPUT_SPLIT_PARTIAL_GET_UI8_I8_I8_CAS_WIDTH -c $< -o $@
 
 build/${mlirFileName}.mlir: ${srcdir}/${pythonSource}.py
 	mkdir -p ${@D}
@@ -53,9 +73,7 @@ build/${mlirFileName}.mlir: ${srcdir}/${pythonSource}.py
 insts.txt: build/${mlirFileName}.mlir
 	aiecc.py -v --aie-only-generate-npu --npu-insts-name=$@ $<
 
-
-# ///////////////////////////////////////
-build/final.xclbin: build/${mlirFileName}.mlir build/bn13_1_conv2dk1_put.o build/bn13_1_conv2dk1_get.o build/bn13_conv2dk3_dw.o build/conv2dk1_put.o build/conv2dk1_skip_get.o 
+build/final.xclbin: build/${mlirFileName}.mlir $(OBJ)
 	cd build && aiecc.py -v --aie-generate-cdo --aie-generate-npu --no-compile-host \
 		--basic-alloc-scheme \
 		--xclbin-name=${@F} --npu-insts-name=insts.txt ${<F}

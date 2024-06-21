@@ -200,9 +200,9 @@ def mobilenetBottleneckB():
             object_fifo_link(OF_bneck_13_wts_L3L2_layer2, [OF_bneck_13_wts_memtile_layer2],[],[0])
 
              #LAYER3
-            OF_bneck_13_wts_L3L2_layer3 = object_fifo("OF_bneck_13_wts_L3L2_layer3", ShimTile20, MemTile21, 1, ty_bneck_13_layer3_wts_full)
-            OF_bneck_13_wts_memtile_layer3_put = object_fifo("OF_bneck_13_wts_memtile_layer3_put", MemTile21, ComputeTile03, 1, ty_bneck_13_layer3_wts_split)
-            OF_bneck_13_wts_memtile_layer3_get = object_fifo("OF_bneck_13_wts_memtile_layer3_get",MemTile21,ComputeTile13,1,ty_bneck_13_layer3_wts_split)
+            OF_bneck_13_wts_L3L2_layer3 = object_fifo("OF_bneck_13_wts_L3L2_layer3", ShimTile10, MemTile01, 1, ty_bneck_13_layer3_wts_full)
+            OF_bneck_13_wts_memtile_layer3_put = object_fifo("OF_bneck_13_wts_memtile_layer3_put", MemTile01, ComputeTile03, 1, ty_bneck_13_layer3_wts_split)
+            OF_bneck_13_wts_memtile_layer3_get = object_fifo("OF_bneck_13_wts_memtile_layer3_get",MemTile01,ComputeTile13,1,ty_bneck_13_layer3_wts_split)
             object_fifo_link(OF_bneck_13_wts_L3L2_layer3, [OF_bneck_13_wts_memtile_layer3_put,OF_bneck_13_wts_memtile_layer3_get],[],[0,(bneck_13_OutC2 * bneck_13_OutC3)//2])
             OF_bneck_13_wts_memtile_layer3_put.set_memtile_repeat(RepeatChannels)
             OF_bneck_13_wts_memtile_layer3_get.set_memtile_repeat(RepeatChannels)
@@ -225,7 +225,7 @@ def mobilenetBottleneckB():
             # object_fifo_link(OF_bneck_13_act_layer2_layer3_first, [OF_outOFL2L3],[],[0])
             # object_fifo_link([OF_bneck_13_act_layer2_layer3_first,OF_bneck_13_act_layer2_layer3_second],[OF_outOFL2L3],[0,(bneck_13_InW3 *  bneck_13_OutC2//2)])
 
-
+        
 
             # conv1x1_first put
             @core(ComputeTile05, "bn13_1_conv2dk1_put.o")
@@ -410,7 +410,7 @@ def mobilenetBottleneckB():
                     yield_([])
             
             # conv1x1_second put
-            @core(ComputeTile03, "conv2dk1_put.o")
+            @core(ComputeTile03, "bn13_conv2dk1_put.o")
             def core_body():
                 for _ in for_(0xFFFFFFFF):
                     
@@ -447,7 +447,7 @@ def mobilenetBottleneckB():
                     yield_([])
 
             # conv1x1_second get
-            @core(ComputeTile13, "conv2dk1_skip_get.o")
+            @core(ComputeTile13, "bn13_conv2dk1_skip_get.o")
             def core_body():
                 for _ in for_(0xFFFFFFFF):
                     

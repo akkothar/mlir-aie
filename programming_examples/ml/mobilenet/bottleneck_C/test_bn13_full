@@ -15,7 +15,7 @@ import os
 import numpy as np
 from aie.utils.xrt import setup_aie, extract_trace, write_out_trace, execute
 import aie.utils.test as test_utils
-from dolphin import print_two_dolphins
+from dolphin import print_dolphin
 from brevitas.nn import QuantConv2d, QuantIdentity, QuantReLU
 from brevitas.quant.fixed_point import (
     Int8ActPerTensorFixedPoint,
@@ -340,7 +340,7 @@ def main(opts):
         atol=1,
     ):
         print("\nPASS!\n")
-        print_two_dolphins()
+        print_dolphin()
         exit(0)
     else:
         print("\nFailed.\n")
