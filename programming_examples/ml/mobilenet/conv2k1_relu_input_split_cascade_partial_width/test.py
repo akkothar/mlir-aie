@@ -21,16 +21,23 @@ from brevitas.quant.fixed_point import (
     Int8WeightPerTensorFixedPoint,
     Uint8ActPerTensorFixedPoint,
 )
+def convert_to_numpy(array):
+    if isinstance(array, np.ndarray):
+        return array
+    elif isinstance(array, torch.Tensor):
+        return array.cpu().numpy()
+    else:
+        raise TypeError("Unsupported array type")
 torch.use_deterministic_algorithms(True)
 torch.manual_seed(0)
 from dolphin import print_dolphin
 
 vectorSize=8
 
-OutC2 = 16
-OutC3 = 8
+OutC2 = 64
+OutC3 = 32
 InW2 = 7
-InH2 = 4
+InH2 = 7
 WeightChunks=2 #2 splits for input channel and then output 
 # OutC2 = OutC1
 
@@ -66,6 +73,33 @@ def chunk_weights_depth_cascade(int_weight, OutC2, WeightChunks):
     input_channels = int_weight.shape[1]
     output_channels = int_weight.shape[0]
 
+    mid_index = input_channels // 2
+
+    for i in range(WeightChunks):
+        if i % 2 == 0:
+            # Alternating chunk from the beginning
+            start_index = (i // 2) * chunk_size
+            end_index = mid_index if i == WeightChunks - 1 else min(mid_index, start_index + chunk_size)
+        else:
+            # Alternating chunk from the middle
+            start_index = mid_index + ((i // 2) * chunk_size)
+            end_index = input_channels if i == WeightChunks - 1 else min(input_channels, start_index + chunk_size)
+
+        for out_c_start in range(0, output_channels, 8):
+            out_c_end = min(out_c_start + 8, output_channels)
+            chunk = int_weight[out_c_start:out_c_end, start_index:end_index, :, :]
+            print("oc={}:{},ic={}:{}".format(out_c_start, out_c_end, start_index, end_index))
+            chunks.append(chunk)
+
+    return chunks
+
+
+def chunk_weights_depth_cascade(int_weight, OutC2, WeightChunks):
+    chunk_size = OutC2 // WeightChunks
+    chunks = []
+    input_channels = int_weight.shape[1]
+    output_channels = int_weight.shape[0]
+
     for i in range(WeightChunks):
         start_index = i * chunk_size
         end_index = input_channels if i == WeightChunks - 1 else (i + 1) * chunk_size
@@ -78,7 +112,12 @@ def chunk_weights_depth_cascade(int_weight, OutC2, WeightChunks):
 
 def reorder_and_concatenate_chunks(int_weight, OutC2, WeightChunks, ds, dtype_wts):
     # Chunk the weights
+
+
+
     chunks = chunk_weights_depth_cascade(int_weight, OutC2, WeightChunks)
+
+
     
     # Reorder each chunk
     reordered_chunks = []
@@ -92,6 +131,7 @@ def reorder_and_concatenate_chunks(int_weight, OutC2, WeightChunks, ds, dtype_wt
     print(total_wts.shape)
     
     return total_wts
+    
 
 
 InC_vec =  math.floor(OutC2/vectorSize)
@@ -119,7 +159,7 @@ def main(opts):
     # ------------------------------------------------------
     # Configure this to match your design's buffer size
     # ------------------------------------------------------
-    dtype_in = np.dtype("uint8")
+    dtype_in = np.dtype("int8")
     dtype_wts = np.dtype("int8")
     dtype_out = np.dtype("uint8")
 
@@ -231,7 +271,7 @@ def main(opts):
 
     q_bottleneck_out = model(input)
     golden_output = q_bottleneck_out.int(float_datatype=True).data.numpy().astype(dtype_out)
-    print("Golden::Brevitas::", golden_output)
+    # print("Golden::Brevitas::", golden_output)
     # print("Input: ", input.shape)
   
     # extract int input
@@ -257,19 +297,23 @@ def main(opts):
     before_input.tofile(
         log_folder + "/before_ifm_mem_fmt_1x1.txt", sep=",", format="%d"
     )
-    # ifm_mem_fmt=chunk_input(before_input,WeightChunks,ds)
-    ifm_mem_fmt = ds.reorder_mat(before_input, "YCXC8", "CYX")
-    # if(InW2>1 and InH2==1):
-    #     ifm_mem_fmt = ds.reorder_mat(before_input, "CXC8", "CX")
-    # elif(InW2>1 and InH2>1):
-    #         ifm_mem_fmt = ds.reorder_mat(before_input, "YCXC8", "CYX")
-    #         ifm_mem_fmt=input_split(before_input,WeightChunks,ds)
-    # else:
-    #     ifm_mem_fmt = ds.reorder_mat(before_input, "CC8", "C")
+    if(InW2>1 and InH2==1):
+        ifm_mem_fmt = ds.reorder_mat(before_input, "CXC8", "CX")
+    elif(InW2>1 and InH2>1):
+            ifm_mem_fmt = ds.reorder_mat(before_input, "YCXC8", "CYX")
+
+    else:
+        ifm_mem_fmt = ds.reorder_mat(before_input, "CC8", "C")
     ifm_mem_fmt.tofile(log_folder + "/after_ifm_mem_fmt_1x1.txt", sep=",", format="%d")
     
     int_weight = model.quant_conv3.quant_weight().int(
         float_datatype=True
+    )
+    wts3_full_put = ds.reorder_mat(
+        int_weight[:,0:OutC2//2,:,:].data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
+    )
+    wts3_full_get = ds.reorder_mat(
+        int_weight[:,OutC2//2:OutC2,:,:].data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
     )
     total_wts = reorder_and_concatenate_chunks(int_weight, OutC2, WeightChunks, ds, dtype_wts)
     # ------------------------------------------------------
@@ -280,8 +324,8 @@ def main(opts):
 
     q_bottleneck_out_HALF = quant_bottleneck_model_HALF(input[:,0:OutC2//2,:,:])
     # q_bottleneck_out_HALF = quant_bottleneck_model_HALF(input[:,OutC2//2:OutC2,:,:])
-    golden_output_HALF = q_bottleneck_out_HALF.int(float_datatype=True).data.numpy().astype(dtype_out)
-    print("Golden_HALF::Brevitas::", golden_output_HALF)
+    # golden_output_HALF = q_bottleneck_out_HALF.int(float_datatype=True).data.numpy().astype(dtype_out)
+    # print("Golden_HALF::Brevitas::", golden_output_HALF)
 
     inp_scale1_HALF= quant_bottleneck_model_HALF.quant_id_1.quant_act_scale()
     skip_add_HALF = quant_bottleneck_model_HALF.relu.quant_act_scale()
@@ -292,17 +336,20 @@ def main(opts):
     int_weight_3_HALF = quant_bottleneck_model_HALF.quant_conv3.quant_weight().int(
         float_datatype=True
     )
-    wts3_put_HALF = ds.reorder_mat(
+    wts3_HALF = ds.reorder_mat(
         int_weight_3_HALF.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
     )
-    print("********************BN13*******************************")
-    print("combined_scale_HALF after conv1x1:", combined_scale3_HALF.item())
-    print("*************************************************")
+    # print("********************BN13*******************************")
+    # print("combined_scale_HALF after conv1x1:", combined_scale3_HALF.item())
+    # print("*************************************************")
 
-    # wts3_put_HALF[:] = 10
-    total_wts = np.concatenate((wts3_put_HALF,wts3_put_HALF), axis=None)
+
+    
+
+    total_wts = np.concatenate((wts3_HALF,wts3_HALF), axis=None)
     # wts1 = ds.reorder_mat(int_weight.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX")
     # total_wts = np.concatenate((wts1), axis=None)
+    total_wts = np.concatenate((wts3_full_put,wts3_full_get), axis=None)
     total_wts.tofile(log_folder + "/weights_mem_fmt_final.txt", sep=",", format="%d")
 
     # ------------------------------------------------------
@@ -337,12 +384,25 @@ def main(opts):
 
     # Check if 'tensor' is all zero
     is_all_zero = torch.allclose(ofm_mem_fmt_out, zeros_tensor)
+    golden=convert_to_numpy(golden_output)
+    ofm_mem_fmt_out=convert_to_numpy(ofm_mem_fmt_out)
+    max_difference = np.max((golden)-(ofm_mem_fmt_out))
+    print("Max:",max_difference)
+            # Find indices where the arrays differ
+    print(golden.shape)
+    if golden.shape != ofm_mem_fmt_out.shape:
+        raise ValueError("The input arrays must have the same shape")
+    tolerance = 1
+    different_indices = np.argwhere(np.abs(golden - ofm_mem_fmt_out) > tolerance)
+    # Print the values at the differing indices
+    # print(different_indices)
+    # Print the values at the differing indices
     if(is_all_zero):
         print("ALL ZEROS")
-
+    
     if np.allclose(
         ofm_mem_fmt_out,
-        golden_output_HALF,
+        golden,
         rtol=0,
         atol=1,
     ):
@@ -351,6 +411,12 @@ def main(opts):
         exit(0)
     else:
         print("\nFailed.\n")
+        for index in different_indices:
+            idx_tuple = tuple(index)
+            # print(f"Index {idx_tuple}: GOLDEN has {golden_output[idx_tuple]}, AIE has {ofm_mem_fmt_out[idx_tuple]}")
+    
+        
+            
         exit(-1)
 
 

@@ -16,13 +16,12 @@ import math
 
 InW2 = 7
 
-InH2 = 4
-InC = 16
-OutC = 8
+InH2 = 7
+InC = 64
+OutC = 32
 InputSplit=2
-
 OutputSplit=OutC//8 #calculate 8 OCs at a time, should increase to more
-WeightChunks=2
+
 
 RepeatChannels=math.floor(InH2)
 
@@ -102,9 +101,9 @@ def mobilenetBottleneckB():
             inOF_act_L2_get = object_fifo("inOF_act_L2_get", MemTile01, ComputeTile04, 2, ty_in_split, )
             object_fifo_link(inOF_act_L3L2, [inOF_act_L2_put,inOF_act_L2_get],[],[0,(InW2*InC//InputSplit)])
             # # wts
-            OF_wts_L3L2 = object_fifo("OF_wts_L3L2", ShimTile00, MemTile01, 2, ty_all_wts )
-            OF_wts_memtile_put = object_fifo("OF_wts_memtile_put", MemTile01, ComputeTile05, 1, ty_wts )
-            OF_wts_memtile_get = object_fifo("OF_wts_memtile_get", MemTile01, ComputeTile04, 1, ty_wts, )
+            OF_wts_L3L2 = object_fifo("OF_wts_L3L2", ShimTile00, MemTile01, 1, ty_all_wts )
+            OF_wts_memtile_put = object_fifo("OF_wts_memtile_put", MemTile01, ComputeTile05, 1, ty_wts)
+            OF_wts_memtile_get = object_fifo("OF_wts_memtile_get", MemTile01, ComputeTile04, 1, ty_wts)
            
             object_fifo_link(OF_wts_L3L2, [OF_wts_memtile_put,OF_wts_memtile_get],[],[0,(InC * OutC)//2])
             OF_wts_memtile_put.set_memtile_repeat(RepeatChannels)
@@ -129,24 +128,27 @@ def mobilenetBottleneckB():
                         # for oc in range(0,OutputSplit):
                         for oc in for_(OutputSplit):
                             oc_cast= arith.IndexCastOp(T.i32(), oc)
-                            for WeightIndex in range (0,InputSplit//2):
+                            # for WeightIndex in range (0,InputSplit//2):
+                            for WeightIndex in for_(0,InputSplit//2): #how many input channel splits, 1 in case InputSplit is 2
+                                WeightIndex_cast= arith.IndexCastOp(T.i32(), WeightIndex)
                                 elemWts = OF_wts_memtile_put.acquire(ObjectFifoPort.Consume, 1)
-                                for x_start in range(0,InW2,7):
-                                    call(
-                                        conv2dk1_put,
-                                        [
-                                            elemIn,
-                                            elemWts,
-                                            arith.constant(InW2),
-                                            arith.constant(InC),
-                                            arith.constant(OutC),
-                                            InputSplit,
-                                            WeightIndex,
-                                            x_start,
-                                            oc_cast
-                                        ],
-                                    )
+                                x_start=0  
+                                call(
+                                    conv2dk1_put,
+                                    [
+                                        elemIn,
+                                        elemWts,
+                                        arith.constant(InW2),
+                                        arith.constant(InC),
+                                        arith.constant(OutC),
+                                        InputSplit,
+                                        WeightIndex_cast,
+                                        x_start,
+                                        oc_cast
+                                    ],
+                                )
                                 objectfifo_release(ObjectFifoPort.Consume, "OF_wts_memtile_put", 1)
+                                yield_([])
                             yield_([])
                         objectfifo_release(ObjectFifoPort.Consume, "inOF_act_L2_put", 1)
                         
@@ -159,33 +161,39 @@ def mobilenetBottleneckB():
                 for _ in for_(0xFFFFFFFF):
                     
                     for _ in for_(InH2):
+                        
                         elemIn = inOF_act_L2_get.acquire(ObjectFifoPort.Consume, 1)
                         elemOut0 = out_04_L2.acquire(ObjectFifoPort.Produce, 1)
                         
-                        scale = memref.load(rtp04, [0])
+                        scale = 10
+                        # scale = memref.load(rtp04, [0])
                         # for oc in range(0,OutputSplit):
                         for oc in for_(OutputSplit):
+                            
                             oc_cast= arith.IndexCastOp(T.i32(), oc)
-                            for WeightIndex in range (InputSplit//2,InputSplit ):
+                            for WeightIndex in for_(0,InputSplit//2):
+                                WeightIndex_cast= arith.IndexCastOp(T.i32(), WeightIndex)
                                 elemWts = OF_wts_memtile_get.acquire(ObjectFifoPort.Consume, 1)
-                                for x_start in range(0,InW2,7):
-                                    call(
-                                        conv2dk1_get,
-                                        [
-                                            elemIn,
-                                            elemWts,
-                                            elemOut0,
-                                            arith.constant(InW2),
-                                            arith.constant(InC),
-                                            arith.constant(OutC),
-                                            scale,
-                                            InputSplit,
-                                            WeightIndex,
-                                            x_start,
-                                            oc_cast
-                                        ],
-                                    )
+                                x_start=0 
+
+                                call(
+                                    conv2dk1_get,
+                                    [
+                                        elemIn,
+                                        elemWts,
+                                        elemOut0,
+                                        arith.constant(InW2),
+                                        arith.constant(InC),
+                                        arith.constant(OutC),
+                                        scale,
+                                        InputSplit,
+                                        WeightIndex_cast,
+                                        x_start,
+                                        oc_cast
+                                    ],
+                                )
                                 objectfifo_release(ObjectFifoPort.Consume, "OF_wts_memtile_get", 1)
+                                yield_([])
                             yield_([])
                         objectfifo_release(ObjectFifoPort.Consume, "inOF_act_L2_get", 1)
                         objectfifo_release(ObjectFifoPort.Produce, "out_04_L2", 1)
@@ -214,7 +222,7 @@ def mobilenetBottleneckB():
 
             @FuncOp.from_py_func(activationsInL3_ty, weightsInL3_ty, activationsOutL3_ty)
             def sequence(inputFromL3, weightsFromL3, outputToL3):
-                NpuWriteRTPOp("rtp04", col=0, row=4, index=0, value=8)
+                NpuWriteRTPOp("rtp04", col=0, row=4, index=0, value=10)
 
                 
                 npu_dma_memcpy_nd(
