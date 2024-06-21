@@ -34,8 +34,8 @@ from dolphin import print_dolphin
 
 vectorSize=8
 
-OutC2 = 64
-OutC3 = 32
+OutC2 = 960
+OutC3 = 160
 InW2 = 7
 InH2 = 7
 WeightChunks=2 #2 splits for input channel and then output 
@@ -88,7 +88,7 @@ def chunk_weights_depth_cascade(int_weight, OutC2, WeightChunks):
         for out_c_start in range(0, output_channels, 8):
             out_c_end = min(out_c_start + 8, output_channels)
             chunk = int_weight[out_c_start:out_c_end, start_index:end_index, :, :]
-            print("oc={}:{},ic={}:{}".format(out_c_start, out_c_end, start_index, end_index))
+            # print("oc={}:{},ic={}:{}".format(out_c_start, out_c_end, start_index, end_index))
             chunks.append(chunk)
 
     return chunks
@@ -106,7 +106,7 @@ def chunk_weights_depth_cascade(int_weight, OutC2, WeightChunks):
         for out_c_start in range(0, output_channels, 8):
             out_c_end = min(out_c_start + 8, output_channels)
             chunk = int_weight[out_c_start:out_c_end, start_index:end_index, :, :]
-            print("oc={}:{},ic={}:{}".format(out_c_start,out_c_end,start_index,end_index))
+            # print("oc={}:{},ic={}:{}".format(out_c_start,out_c_end,start_index,end_index))
             chunks.append(chunk)
     return chunks
 
@@ -372,7 +372,7 @@ def main(opts):
         log_folder + "/after_ofm_mem_fmt_final.txt", sep=",", format="%d"
     )
     ofm_mem_fmt_out = torch.from_numpy(ofm_mem_fmt).unsqueeze(0)
-    print("AIE:",ofm_mem_fmt_out)
+    # print("AIE:",ofm_mem_fmt_out)
 
     # ------------------------------------------------------
     # Compare the AIE output and the golden reference

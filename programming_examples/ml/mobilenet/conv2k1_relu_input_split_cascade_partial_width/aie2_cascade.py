@@ -17,8 +17,8 @@ import math
 InW2 = 7
 
 InH2 = 7
-InC = 64
-OutC = 32
+InC = 960
+OutC = 160
 InputSplit=2
 OutputSplit=OutC//8 #calculate 8 OCs at a time, should increase to more
 
@@ -165,7 +165,7 @@ def mobilenetBottleneckB():
                         elemIn = inOF_act_L2_get.acquire(ObjectFifoPort.Consume, 1)
                         elemOut0 = out_04_L2.acquire(ObjectFifoPort.Produce, 1)
                         
-                        scale = 10
+                        scale = 11
                         # scale = memref.load(rtp04, [0])
                         # for oc in range(0,OutputSplit):
                         for oc in for_(OutputSplit):
@@ -222,7 +222,7 @@ def mobilenetBottleneckB():
 
             @FuncOp.from_py_func(activationsInL3_ty, weightsInL3_ty, activationsOutL3_ty)
             def sequence(inputFromL3, weightsFromL3, outputToL3):
-                NpuWriteRTPOp("rtp04", col=0, row=4, index=0, value=10)
+                NpuWriteRTPOp("rtp04", col=0, row=4, index=0, value=11)
 
                 
                 npu_dma_memcpy_nd(
