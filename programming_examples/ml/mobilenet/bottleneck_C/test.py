@@ -201,10 +201,10 @@ def main(opts):
             out = self.bn13_quant_conv2(out)
             out = self.bn13_quant_relu2(out)
             out = self.bn13_quant_conv3(out)
-            out = self.bn13_quant_relu3(out)
-            # out = self.quant_id_1(out)
-            # out=out+out_q
-            # out = self.bn13_add(out)
+            # out = self.bn13_quant_relu3(out)
+            out = self.quant_id_1(out)
+            out=out+out_q
+            out = self.bn13_add(out)
             return out
 
     quant_bottleneck_model = QuantBottleneck(in_planes=bneck_13_InC1, bn13_expand=bneck_13_OutC2,bn13_project=bneck_13_OutC3)
@@ -235,14 +235,19 @@ def main(opts):
         block_13_relu_1 * block_13_weight_scale2 / block_13_relu_2
     )  
     block_13_combined_scale3 = -torch.log2(
-        block_13_relu_2 * block_13_weight_scale3/block_13_relu_3
+        block_13_relu_2 * block_13_weight_scale3/block_13_inp_scale1
     )   
+    block_13_combined_scale_skip = -torch.log2(
+        block_13_inp_scale1 / block_13_skip_add
+    )  # After addition | clip -128-->127
+
    
 
     print("********************BN13*******************************")
     print("combined_scale after conv1x1:", block_13_combined_scale1.item())
     print("combined_scale after conv3x3:", block_13_combined_scale2.item())
     print("combined_scale after conv1x1:", block_13_combined_scale3.item())
+    print("combined_scale after skip add:", block_13_combined_scale_skip.item())
     print("********************BN12*******************************")
 
     # print("combined_scale after conv1x1:", ( block_0_relu_2 * block_0_weight_scale3).item())

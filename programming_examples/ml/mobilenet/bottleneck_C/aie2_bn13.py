@@ -69,7 +69,7 @@ def mobilenetBottleneckB():
             ty_bneck_13_layer2_out = MemRefType.get((bneck_13_InW3, 1, bneck_13_OutC2, ), uint8_ty, )
             ty_bneck_13_layer2_out_split = MemRefType.get((bneck_13_InW3, 1, bneck_13_OutC2//InputSplit, ), uint8_ty, )
              # layer3
-            ty_bneck_13_layer3_out = MemRefType.get((bneck_13_InW3, 1, bneck_13_OutC3, ), uint8_ty, )
+            ty_bneck_13_layer3_out = MemRefType.get((bneck_13_InW3, 1, bneck_13_OutC3, ), int8_ty, )
             
 # HERE
             
@@ -140,12 +140,14 @@ def mobilenetBottleneckB():
                 ],
             )
 
-            bn13_layer3_conv2dk1_get = external_func(
-                "bn13_1_conv2dk1_ui8_ui8_input_split_partial_width_get",
+            bn13_layer3_conv2dk1_skip_get = external_func(
+                "bn_13_2_conv2dk1_ui8_i8_i8_scalar_input_split_partial_width_get",
                 inputs=[
                     ty_bneck_13_layer2_out_split,
                     ty_bneck_13_layer3_wts_split,
                     ty_bneck_13_layer3_out,
+                    ty_bneck_13_layer1_in,
+                    int32_ty,
                     int32_ty,
                     int32_ty,
                     int32_ty,
@@ -180,7 +182,9 @@ def mobilenetBottleneckB():
             # AIE-array data movement with object fifos
             # ************************ bneck13 ************************
             # Input
-            inOF_act_L3L2 = object_fifo("inOF_act_L3L2", ShimTile00, [ComputeTile05,ComputeTile04], [2, 2, 2], ty_bneck_13_layer1_in,)
+            inOF_act_L3L2 = object_fifo("inOF_act_L3L2", ShimTile00, [ComputeTile05,ComputeTile04,MemTile01], [2, 2, 2, 6], ty_bneck_13_layer1_in,)
+            OF_bneck_13_skip = object_fifo("OF_bneck_13_skip", MemTile01, ComputeTile13, 2, ty_bneck_13_layer1_in)
+            object_fifo_link(inOF_act_L3L2, OF_bneck_13_skip)
         
             # ************ wts ************
                 #LAYER1 
@@ -443,7 +447,7 @@ def mobilenetBottleneckB():
                     yield_([])
 
             # conv1x1_second get
-            @core(ComputeTile13, "conv2dk1_get.o")
+            @core(ComputeTile13, "conv2dk1_skip_get.o")
             def core_body():
                 for _ in for_(0xFFFFFFFF):
                     
@@ -451,8 +455,10 @@ def mobilenetBottleneckB():
                         
                         elemIn = OF_bneck_13_act_layer2_layer3_second.acquire(ObjectFifoPort.Consume, 1)
                         elemOut0 = OF_bneck_13_act_layer3_out.acquire(ObjectFifoPort.Produce, 1)
+                        elementSkipsIn = OF_bneck_13_skip.acquire(ObjectFifoPort.Consume, 1)
                         
-                        scale = 11
+                        scale = 12
+                        scale_skip = 0
                         # scale = memref.load(rtp04, [0])
                         # for oc in range(0,OutputSplit):
                         for oc in for_(OutputSplit2):
@@ -464,15 +470,17 @@ def mobilenetBottleneckB():
                                 x_start=0 
 
                                 call(
-                                    bn13_layer3_conv2dk1_get,
+                                    bn13_layer3_conv2dk1_skip_get,
                                     [
                                         elemIn,
                                         elemWts,
                                         elemOut0,
+                                        elementSkipsIn,
                                         arith.constant(bneck_13_InW3),
                                         arith.constant(bneck_13_OutC2),
                                         arith.constant(bneck_13_OutC3),
                                         scale,
+                                        scale_skip,
                                         InputSplit,
                                         WeightIndex_cast,
                                         x_start,
@@ -484,6 +492,7 @@ def mobilenetBottleneckB():
                             yield_([])
                         objectfifo_release(ObjectFifoPort.Consume, "OF_bneck_13_act_layer2_layer3_second", 1)
                         objectfifo_release(ObjectFifoPort.Produce, "OF_bneck_13_act_layer3_out", 1)
+                        objectfifo_release(ObjectFifoPort.Consume, "OF_bneck_13_skip", 1)
                         
                         yield_([])
                     yield_([])
