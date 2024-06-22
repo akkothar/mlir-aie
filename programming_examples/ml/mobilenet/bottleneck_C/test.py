@@ -80,7 +80,7 @@ def reorder_and_concatenate_chunks(int_weight, InC, WeightChunks, ds, dtype_wts)
 
 
 # wts_size=(bneck_13_OutC1*bneck_13_InC1)
-wts_size=(bneck_13_OutC1*bneck_13_InC1)+(3*3*bneck_13_OutC2)+(bneck_13_OutC2*bneck_13_OutC3)
+wts_size=2*((bneck_13_OutC1*bneck_13_InC1)+(3*3*bneck_13_OutC2)+(bneck_13_OutC2*bneck_13_OutC3))
 
 def main(opts):
     design = "mobilenet_bottleneck_C"
@@ -131,7 +131,7 @@ def main(opts):
         trace_size=trace_size,
     )
     class QuantBottleneck(nn.Module):
-        def __init__(self, in_planes=16, bn13_expand=16,bn13_project=16,bn14_expand=16,bn11_project=16,bn12_expand=16,bn12_project=16):
+        def __init__(self, in_planes=16, bn13_expand=16,bn13_project=16,bn14_expand=16,bn14_project=16):
             super(QuantBottleneck, self).__init__()
             self.quant_id_1 = QuantIdentity(
                 act_quant=Int8ActPerTensorFixedPoint,
@@ -183,31 +183,90 @@ def main(opts):
                 bit_width=8,
                 return_quant_tensor=True,
             )
-            self.bn13_quant_relu3 = QuantReLU(
-                act_quant=Uint8ActPerTensorFixedPoint,
-                bit_width=8,
-                return_quant_tensor=True,
-            )
             self.bn13_add = QuantIdentity(
                 act_quant=Int8ActPerTensorFixedPoint,
                 bit_width=8,
                 return_quant_tensor=True,
             )
 
-        def forward(self, x):
-            out_q = self.quant_id_1(x)
-            out = self.bn13_quant_conv1(out_q)
-            out = self.bn13_quant_relu1(out)
-            out = self.bn13_quant_conv2(out)
-            out = self.bn13_quant_relu2(out)
-            out = self.bn13_quant_conv3(out)
-            # out = self.bn13_quant_relu3(out)
-            out = self.quant_id_1(out)
-            out=out+out_q
-            out = self.bn13_add(out)
-            return out
+            # bn14
 
-    quant_bottleneck_model = QuantBottleneck(in_planes=bneck_13_InC1, bn13_expand=bneck_13_OutC2,bn13_project=bneck_13_OutC3)
+            self.bn14_quant_conv1 = QuantConv2d(
+                bn13_project,
+                bn14_expand,
+                kernel_size=1,
+                bit_width=8,
+                weight_bit_width=8,
+                bias=False,
+                weight_quant=Int8WeightPerTensorFixedPoint,
+                return_quant_tensor=True,
+            )
+            self.bn14_quant_conv2 = QuantConv2d(
+                bn14_expand,
+                bn14_expand,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+                padding_mode="zeros",
+                bit_width=8,
+                groups=bn14_expand,
+                weight_bit_width=8,
+                bias=False,
+                weight_quant=Int8WeightPerTensorFixedPoint,
+                return_quant_tensor=True,
+            )
+            self.bn14_quant_conv3 = QuantConv2d(
+                bn14_expand,
+                bn14_project,
+                kernel_size=1,
+                bit_width=8,
+                weight_bit_width=8,
+                bias=False,
+                weight_quant=Int8WeightPerTensorFixedPoint,
+                return_quant_tensor=True,
+            )
+            self.bn14_quant_relu1 = QuantReLU(
+                act_quant=Uint8ActPerTensorFixedPoint,
+                bit_width=8,
+                return_quant_tensor=True,
+            )
+            self.bn14_quant_relu2 = QuantReLU(
+                act_quant=Uint8ActPerTensorFixedPoint,
+                bit_width=8,
+                return_quant_tensor=True,
+            )
+            self.bn14_add = QuantIdentity(
+                act_quant=Int8ActPerTensorFixedPoint,
+                bit_width=8,
+                return_quant_tensor=True,
+            )
+
+        def forward(self, x):
+            bn13_out_q = self.quant_id_1(x)
+            bn13_out = self.bn13_quant_conv1(bn13_out_q)
+            bn13_out = self.bn13_quant_relu1(bn13_out)
+            bn13_out = self.bn13_quant_conv2(bn13_out)
+            bn13_out = self.bn13_quant_relu2(bn13_out)
+            bn13_out = self.bn13_quant_conv3(bn13_out)
+            # out = self.bn13_quant_relu3(out)
+            bn13_out = self.quant_id_1(bn13_out)
+            bn13_out=bn13_out+bn13_out_q
+            bn13_out = self.bn13_add(bn13_out)
+
+            bn14_out = self.bn14_quant_conv1(bn13_out)
+            bn14_out = self.bn14_quant_relu1(bn14_out)
+            bn14_out = self.bn14_quant_conv2(bn14_out)
+            bn14_out = self.bn14_quant_relu2(bn14_out)
+            bn14_out = self.bn14_quant_conv3(bn14_out)
+
+            bn14_out = self.quant_id_1(bn14_out)
+            bn14_out=bn13_out+bn14_out
+
+            bn14_out = self.bn14_add(bn14_out)
+
+            return bn14_out
+
+    quant_bottleneck_model = QuantBottleneck(in_planes=bneck_13_InC1, bn13_expand=bneck_13_OutC2,bn13_project=bneck_13_OutC3,bn14_expand=bneck_13_OutC2,bn14_project=bneck_13_OutC3)
     quant_bottleneck_model.eval()
     
     q_bottleneck_out = quant_bottleneck_model(input)
@@ -222,7 +281,6 @@ def main(opts):
 
     block_13_relu_1 = quant_bottleneck_model.bn13_quant_relu1.quant_act_scale()
     block_13_relu_2 = quant_bottleneck_model.bn13_quant_relu2.quant_act_scale()
-    block_13_relu_3 = quant_bottleneck_model.bn13_quant_relu3.quant_act_scale()
     block_13_skip_add = quant_bottleneck_model.bn13_add.quant_act_scale()
 
     block_13_weight_scale1 = quant_bottleneck_model.bn13_quant_conv1.quant_weight_scale()
@@ -241,6 +299,28 @@ def main(opts):
         block_13_inp_scale1 / block_13_skip_add
     )  # After addition | clip -128-->127
 
+    block_14_relu_1 = quant_bottleneck_model.bn14_quant_relu1.quant_act_scale()
+    block_14_relu_2 = quant_bottleneck_model.bn14_quant_relu2.quant_act_scale()
+    block_14_skip_add = quant_bottleneck_model.bn14_add.quant_act_scale()
+
+    block_14_weight_scale1 = quant_bottleneck_model.bn14_quant_conv1.quant_weight_scale()
+    block_14_weight_scale2 = quant_bottleneck_model.bn14_quant_conv2.quant_weight_scale()
+    block_14_weight_scale3 = quant_bottleneck_model.bn14_quant_conv3.quant_weight_scale()
+    block_14_combined_scale1 = -torch.log2(
+        block_13_skip_add * block_14_weight_scale1 / block_14_relu_1
+    )
+    block_14_combined_scale2 = -torch.log2(
+        block_14_relu_1 * block_14_weight_scale2 / block_14_relu_2
+    )  
+    block_14_combined_scale3 = -torch.log2(
+        block_14_relu_2 * block_14_weight_scale3/block_13_inp_scale1
+    )   
+    block_14_combined_scale_skip = -torch.log2(
+        block_13_inp_scale1 / block_14_skip_add
+    )  # After addition | clip -128-->127
+
+
+
    
 
     print("********************BN13*******************************")
@@ -248,7 +328,11 @@ def main(opts):
     print("combined_scale after conv3x3:", block_13_combined_scale2.item())
     print("combined_scale after conv1x1:", block_13_combined_scale3.item())
     print("combined_scale after skip add:", block_13_combined_scale_skip.item())
-    print("********************BN12*******************************")
+    print("********************BN14*******************************")
+    print("combined_scale after conv1x1:", block_14_combined_scale1.item())
+    print("combined_scale after conv3x3:", block_14_combined_scale2.item())
+    print("combined_scale after conv1x1:", block_14_combined_scale3.item())
+    print("combined_scale after skip add:", block_14_combined_scale_skip.item())
 
     # print("combined_scale after conv1x1:", ( block_0_relu_2 * block_0_weight_scale3).item())
     # ------------------------------------------------------
@@ -262,6 +346,16 @@ def main(opts):
         float_datatype=True
     )
     block_13_int_weight_3 = quant_bottleneck_model.bn13_quant_conv3.quant_weight().int(
+        float_datatype=True
+    )
+
+    block_14_int_weight_1 = quant_bottleneck_model.bn14_quant_conv1.quant_weight().int(
+        float_datatype=True
+    )
+    block_14_int_weight_2 = quant_bottleneck_model.bn14_quant_conv2.quant_weight().int(
+        float_datatype=True
+    )
+    block_14_int_weight_3 = quant_bottleneck_model.bn14_quant_conv3.quant_weight().int(
         float_datatype=True
     )
 
@@ -289,20 +383,23 @@ def main(opts):
     #     block_13_int_weight_1.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
     # )
     bn13_wts1 = reorder_and_concatenate_chunks(block_13_int_weight_1, bneck_13_InC1, WeightChunks, ds, dtype_wts)
-    bn13_wts2 = ds.reorder_mat(
-        block_13_int_weight_2.data.numpy().astype(dtype_wts), "OIYXI1O8", "OIYX"
-    )
+    bn13_wts2 = ds.reorder_mat(block_13_int_weight_2.data.numpy().astype(dtype_wts), "OIYXI1O8", "OIYX")
     # bn13_wts3 = ds.reorder_mat(
     #     block_13_int_weight_3.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
     # )
-    bn13_wts3_put = ds.reorder_mat(
-        block_13_int_weight_3[:,0:bneck_13_OutC2//2,:,:].data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
+    bn13_wts3_put = ds.reorder_mat(block_13_int_weight_3[:,0:bneck_13_OutC2//2,:,:].data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX")
+    bn13_wts3_get = ds.reorder_mat(block_13_int_weight_3[:,bneck_13_OutC2//2:bneck_13_OutC2,:,:].data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
     )
-    bn13_wts3_get = ds.reorder_mat(
-        block_13_int_weight_3[:,bneck_13_OutC2//2:bneck_13_OutC2,:,:].data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
+    # **************************** bn14 ****************************
+    bn14_wts1 = reorder_and_concatenate_chunks(block_14_int_weight_1, bneck_13_InC1, WeightChunks, ds, dtype_wts)
+    bn14_wts2 = ds.reorder_mat(block_14_int_weight_2.data.numpy().astype(dtype_wts), "OIYXI1O8", "OIYX")
+    # bn13_wts3 = ds.reorder_mat(
+    #     block_13_int_weight_3.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
+    # )
+    bn14_wts3_put = ds.reorder_mat(block_14_int_weight_3[:,0:bneck_13_OutC2//2,:,:].data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX")
+    bn14_wts3_get = ds.reorder_mat(block_14_int_weight_3[:,bneck_13_OutC2//2:bneck_13_OutC2,:,:].data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
     )
-
-    total_wts = np.concatenate((bn13_wts1,bn13_wts2,bn13_wts3_put,bn13_wts3_get), axis=None)
+    total_wts = np.concatenate((bn13_wts1,bn13_wts2,bn13_wts3_put,bn13_wts3_get,bn14_wts1,bn14_wts2,bn14_wts3_put,bn14_wts3_get), axis=None)
 
 
     total_wts.tofile(log_folder + "/after_weights_mem_fmt_final.txt", sep=",", format="%d")

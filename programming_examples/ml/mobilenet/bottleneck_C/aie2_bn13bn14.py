@@ -57,7 +57,7 @@ if len(sys.argv) == 3:
 def mobilenetBottleneckB():
     with mlir_mod_ctx() as ctx:
 
-        @device(AIEDevice.npu1_3col)
+        @device(AIEDevice.npu1_4col)
         def device_body():
             # define types
             uint8_ty = IntegerType.get_unsigned(8)
@@ -368,18 +368,18 @@ def mobilenetBottleneckB():
             # ************ wts ************
             # wts for new block
             OF_bneck_14_wts_L3L2_layer1 = object_fifo("OF_bneck_14_wts_L3L2_layer1", ShimTile20, MemTile21, 1, ty_bneck_14_layer1_wts_full)
-            OF_bneck_14_wts_memtile_layer1_put = object_fifo("OF_bneck_14_wts_memtile_layer1_put", MemTile21, ComputeTile22, [1,1], ty_bneck_14_layer1_wts_split)
-            OF_bneck_14_wts_memtile_layer1_get = object_fifo("OF_bneck_14_wts_memtile_layer1_get", MemTile21, ComputeTile23, [1,1], ty_bneck_14_layer1_wts_split,)
+            OF_bneck_14_wts_memtile_layer1_put = object_fifo("OF_bneck_14_wts_memtile_layer1_put", MemTile21, ComputeTile12, [1,1], ty_bneck_14_layer1_wts_split)
+            OF_bneck_14_wts_memtile_layer1_get = object_fifo("OF_bneck_14_wts_memtile_layer1_get", MemTile21, ComputeTile22, [1,1], ty_bneck_14_layer1_wts_split,)
             object_fifo_link(OF_bneck_14_wts_L3L2_layer1, [OF_bneck_14_wts_memtile_layer1_put, OF_bneck_14_wts_memtile_layer1_get], [], [0, (bneck_14_InC1 * bneck_14_OutC1) // 2])
             OF_bneck_14_wts_memtile_layer1_put.set_memtile_repeat(RepeatChannels)
             OF_bneck_14_wts_memtile_layer1_get.set_memtile_repeat(RepeatChannels)
             # LAYER2
             OF_bneck_14_wts_L3L2_layer2 = object_fifo("OF_bneck_14_wts_L3L2_layer2", ShimTile20, MemTile11, 1, ty_bneck_14_layer2_wts)
-            OF_bneck_14_wts_memtile_layer2 = object_fifo("OF_bneck_14_wts_memtile_layer2", MemTile11, ComputeTile14, 1, ty_bneck_14_layer2_wts)
+            OF_bneck_14_wts_memtile_layer2 = object_fifo("OF_bneck_14_wts_memtile_layer2", MemTile11, ComputeTile23, 1, ty_bneck_14_layer2_wts)
             object_fifo_link(OF_bneck_14_wts_L3L2_layer2, OF_bneck_14_wts_memtile_layer2, [], [0])
             # LAYER3
             OF_bneck_14_wts_L3L2_layer3 = object_fifo("OF_bneck_14_wts_L3L2_layer3", ShimTile30, MemTile21, 1, ty_bneck_14_layer3_wts_full)
-            OF_bneck_14_wts_memtile_layer3_put = object_fifo("OF_bneck_14_wts_memtile_layer3_put", MemTile21, ComputeTile23, [1,1], ty_bneck_14_layer3_wts_split)
+            OF_bneck_14_wts_memtile_layer3_put = object_fifo("OF_bneck_14_wts_memtile_layer3_put", MemTile21, ComputeTile25, [1,1], ty_bneck_14_layer3_wts_split)
             OF_bneck_14_wts_memtile_layer3_get = object_fifo("OF_bneck_14_wts_memtile_layer3_get", MemTile21, ComputeTile24, [1,1], ty_bneck_14_layer3_wts_split,)
             object_fifo_link(OF_bneck_14_wts_L3L2_layer3, [OF_bneck_14_wts_memtile_layer3_put, OF_bneck_14_wts_memtile_layer3_get], [], [0, (bneck_14_OutC2 * bneck_14_OutC3) // 2])
             OF_bneck_14_wts_memtile_layer3_put.set_memtile_repeat(RepeatChannels)
@@ -388,8 +388,8 @@ def mobilenetBottleneckB():
             # Object FIFO for b14 block results
             OF_bneck_14_act_layer1_layer2 = object_fifo("OF_bneck_14_act_layer1_layer2", ComputeTile22, ComputeTile23, 4, ty_bneck_14_layer1_out,via_DMA=True)
 
-            OF_bneck_14_act_layer2_layer3_first = object_fifo("OF_bneck_14_act_layer2_layer3_first", ComputeTile23, ComputeTile12, 2, ty_bneck_14_layer2_out_split)
-            OF_bneck_14_act_layer2_layer3_second = object_fifo("OF_bneck_14_act_layer2_layer3_second", ComputeTile23, [ComputeTile22], 2, ty_bneck_14_layer2_out_split)
+            OF_bneck_14_act_layer2_layer3_first = object_fifo("OF_bneck_14_act_layer2_layer3_first", ComputeTile23, ComputeTile25, 2, ty_bneck_14_layer2_out_split)
+            OF_bneck_14_act_layer2_layer3_second = object_fifo("OF_bneck_14_act_layer2_layer3_second", ComputeTile23, [ComputeTile24], 2, ty_bneck_14_layer2_out_split)
 
             OF_bneck_14_layer3_out = object_fifo("OF_bneck_14_layer3_out", ComputeTile24, MemTile21, 2, ty_bneck_14_layer3_out)
             OF_outOFL2L3 = object_fifo("outOFL2L3", MemTile21, [ShimTile30], 2, ty_bneck_14_layer3_out)
@@ -700,10 +700,10 @@ def mobilenetBottleneckB():
                                             oc_cast
                                         ],
                                     )
-                                objectfifo_release(ObjectFifoPort.Consume, "OF_bneck_13_wts_memtile_layer1_put", 1)
+                                objectfifo_release(ObjectFifoPort.Consume, "OF_bneck_14_wts_memtile_layer1_put", 1)
                                 yield_([])
                             yield_([])
-                        objectfifo_release(ObjectFifoPort.Consume, "OF_bneck_14_wts_memtile_layer1_put", 1)
+                        objectfifo_release(ObjectFifoPort.Consume, "OF_bneck_13_act_layer3_bn_14_layer1", 1)
                         
                         yield_([])
                     yield_([])
