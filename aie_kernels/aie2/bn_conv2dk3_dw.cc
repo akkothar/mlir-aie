@@ -442,25 +442,73 @@ extern "C" {
     #endif 
     #endif 
 #endif // BN
-#ifdef BN13
+
+#ifdef BN14
     #ifdef SCALAR
-    #ifdef STRIDE1_OUT_SPLIT
-      void bn13_conv2dk3_ui8_out_split(uint8_t *line0, uint8_t *line1, uint8_t *line2,
-                          int8_t *wts, uint8_t *output1,uint8_t *output2,
-                          const int32_t input_width,
-                          const int32_t input_channels,
-                          const int32_t output_channels,
-                          const int32_t kernel_width,
-                          const int32_t kernel_height, const int32_t check,
-                          const int scale, const int channel_offset) {
-       conv2dk3_ui8_out_split_scalar(line0, line1, line2, wts, output1,output2,
-                               input_width,
-                          input_channels, output_channels, kernel_width,
-                          kernel_height, check, scale, channel_offset) ;
-    }
-    #endif 
+      #ifdef STRIDE1_OUT_SPLIT
+        void bn14_conv2dk3_ui8_out_split(uint8_t *line0, uint8_t *line1, uint8_t *line2,
+                            int8_t *wts, uint8_t *output1,uint8_t *output2,
+                            const int32_t input_width,
+                            const int32_t input_channels,
+                            const int32_t output_channels,
+                            const int32_t kernel_width,
+                            const int32_t kernel_height, const int32_t check,
+                            const int scale, const int channel_offset) {
+        conv2dk3_ui8_out_split_scalar(line0, line1, line2, wts, output1,output2,
+                                input_width,
+                            input_channels, output_channels, kernel_width,
+                            kernel_height, check, scale, channel_offset) ;
+      }
+      #endif 
+
+      #ifdef STRIDE1
+      void bn14_conv2dk3_ui8(uint8_t *line0, uint8_t *line1, uint8_t *line2, int8_t *wts,
+                        uint8_t *output, const int32_t input_width,
+                        const int32_t input_channels, const int32_t output_channels,
+                        const int32_t kernel_width, const int32_t kernel_height,
+                        const int32_t check, const int scale,
+                        const int channel_offset) {
+        conv2dk3_ui8_scalar(line0, line1, line2, wts, output, input_width,
+                            input_channels, output_channels, kernel_width,
+                            kernel_height, check, scale, channel_offset);
+      }
+      #endif 
     #endif 
 #endif // BN
+
+#ifdef BN13
+    #ifdef SCALAR
+      #ifdef STRIDE1_OUT_SPLIT
+        void bn13_conv2dk3_ui8_out_split(uint8_t *line0, uint8_t *line1, uint8_t *line2,
+                            int8_t *wts, uint8_t *output1,uint8_t *output2,
+                            const int32_t input_width,
+                            const int32_t input_channels,
+                            const int32_t output_channels,
+                            const int32_t kernel_width,
+                            const int32_t kernel_height, const int32_t check,
+                            const int scale, const int channel_offset) {
+        conv2dk3_ui8_out_split_scalar(line0, line1, line2, wts, output1,output2,
+                                input_width,
+                            input_channels, output_channels, kernel_width,
+                            kernel_height, check, scale, channel_offset) ;
+      }
+      #endif 
+
+      #ifdef STRIDE1
+      void bn13_conv2dk3_ui8(uint8_t *line0, uint8_t *line1, uint8_t *line2, int8_t *wts,
+                        uint8_t *output, const int32_t input_width,
+                        const int32_t input_channels, const int32_t output_channels,
+                        const int32_t kernel_width, const int32_t kernel_height,
+                        const int32_t check, const int scale,
+                        const int channel_offset) {
+        conv2dk3_ui8_scalar(line0, line1, line2, wts, output, input_width,
+                            input_channels, output_channels, kernel_width,
+                            kernel_height, check, scale, channel_offset);
+      }
+      #endif 
+    #endif 
+#endif // BN
+
 #ifdef BN11
     #ifdef SCALAR
 

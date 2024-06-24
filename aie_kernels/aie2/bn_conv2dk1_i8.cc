@@ -30,7 +30,7 @@ const int32_t UMAX = 255;
 const int32_t MAX_VALUES = 16;
 
 
-#if defined (BN13_1_INPUT_SPLIT_PARTIAL_PUT_UI8_UI8_CAS_WIDTH) 
+#if defined (BN13_1_INPUT_SPLIT_PARTIAL_PUT_UI8_UI8_CAS_WIDTH) || (BN14_1_INPUT_SPLIT_PARTIAL_PUT_UI8_UI8_CAS_WIDTH) 
 // 8 Pixels Width Processing Approach: Processes 8 spatial pixels (x_start to x_start + 8) simultaneously within each output channel (oc8 iteration).
 void conv2dk1_ui8_ui8_scalar_input_split_partial_width_put(uint8_t *input, int8_t *kernels,
                                               const int32_t input_width, const int32_t input_channels,
@@ -347,7 +347,7 @@ void conv2dk1_ui8_ui8_scalar_input_split_partial_width_put(uint8_t *input, int8_
 
 // #endif
 
-#if defined (PARTIAL_PUT_I8_CAS_WIDTH) || (BN13_1_PARTIAL_PUT_I8_CAS_WIDTH) || (BN13_2_PARTIAL_PUT_I8_CAS_WIDTH)
+#if defined (PARTIAL_PUT_I8_CAS_WIDTH) || (BN13_1_PARTIAL_PUT_I8_CAS_WIDTH) || (BN14_1_PARTIAL_PUT_I8_CAS_WIDTH)
 // 8 Pixels Width Processing Approach: Processes 8 spatial pixels (x_start to x_start + 8) simultaneously within each output channel (oc8 iteration).
 void conv2dk1_i8_ui8_scalar_partial_width_put(int8_t *input, int8_t *kernels,
                                               const int32_t input_width, const int32_t input_channels,
@@ -830,6 +830,20 @@ void bn13_1_conv2dk1_ui8_ui8_input_split_partial_width_put(uint8_t *input, int8_
 
 #endif
 
+  #ifdef BN14_1_INPUT_SPLIT_PARTIAL_PUT_UI8_UI8_CAS_WIDTH
+void bn14_1_conv2dk1_ui8_ui8_input_split_partial_width_put(uint8_t *input, int8_t *kernels,
+                                              const int32_t input_width, const int32_t input_channels,
+                                              const int32_t output_channels, const int32_t input_split,
+                                              const int32_t weight_index, const int32_t x_start, const int32_t oc)
+                                              {
+        conv2dk1_ui8_ui8_scalar_input_split_partial_width_put(input, kernels,
+                                          input_width, input_channels,
+                                          output_channels,  input_split,
+                                          weight_index,  x_start,  oc);
+                                              }
+
+#endif
+
   #ifdef BN13_2_PARTIAL_GET_I8_I8_CAS_WIDTH
 
 void bn13_2_conv2dk1_i8_i8_partial_width_get(int8_t *input, int8_t *kernels, int8_t *output,
@@ -859,11 +873,11 @@ void bn13_1_conv2dk1_i8_ui8_partial_width_put(int8_t *input, int8_t *kernels,
 
 #endif
 
-#ifdef BN13_2_PARTIAL_PUT_I8_CAS_WIDTH
-void bn13_2_conv2dk1_i8_ui8_partial_width_put(int8_t *input, int8_t *kernels,
+#ifdef BN14_1_PARTIAL_PUT_I8_CAS_WIDTH
+void bn14_1_conv2dk1_i8_ui8_partial_width_put(int8_t *input, int8_t *kernels,
                                               const int32_t input_width, const int32_t input_channels,
-                                              const int32_t output_channels, int32_t input_split,
-                                              int32_t weight_index, int32_t x_start, int32_t oc)
+                                              const int32_t output_channels, const int32_t input_split,
+                                              const int32_t weight_index, const int32_t x_start, const int32_t oc)
                                               {
         conv2dk1_i8_ui8_scalar_partial_width_put(input, kernels,
                                           input_width, input_channels,
@@ -872,6 +886,20 @@ void bn13_2_conv2dk1_i8_ui8_partial_width_put(int8_t *input, int8_t *kernels,
                                               }
 
 #endif
+
+// #ifdef BN13_2_PARTIAL_PUT_I8_CAS_WIDTH
+// void bn13_2_conv2dk1_i8_ui8_partial_width_put(int8_t *input, int8_t *kernels,
+//                                               const int32_t input_width, const int32_t input_channels,
+//                                               const int32_t output_channels, int32_t input_split,
+//                                               int32_t weight_index, int32_t x_start, int32_t oc)
+//                                               {
+//         conv2dk1_i8_ui8_scalar_partial_width_put(input, kernels,
+//                                           input_width, input_channels,
+//                                           output_channels,  input_split,
+//                                           weight_index,  x_start,  oc);
+//                                               }
+
+// #endif
 
 #ifdef PARTIAL_PUT_I8_CAS_WIDTH
 void conv2dk1_i8_ui8_partial_width_put(int8_t *input, int8_t *kernels,
