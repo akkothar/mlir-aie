@@ -121,8 +121,10 @@ class bottleneckACore:
                     else:
                         actInLayer1Rows = self.actIn.acquire(ObjectFifoPort.Consume, self.depthWiseStride)
                         actOutLayer1Rows = self.of_act_1_2.acquire(ObjectFifoPort.Produce, self.depthWiseStride)
-                        call(self.f1x1Relu, [actInLayer1Rows[0], weightsLayer1, actOutLayer1Rows[0], self.tensorInW, self.tensorL1InC, self.tensorL1OutC, scaleLayer1])
+                        if (self.depthWiseStride==1):
+                            call(self.f1x1Relu, [actInLayer1Rows, weightsLayer1, actOutLayer1Rows, self.tensorInW, self.tensorL1InC, self.tensorL1OutC, scaleLayer1])
                         if (self.depthWiseStride==2):
+                            call(self.f1x1Relu, [actInLayer1Rows[0], weightsLayer1, actOutLayer1Rows[0], self.tensorInW, self.tensorL1InC, self.tensorL1OutC, scaleLayer1])
                             call(self.f1x1Relu, [actInLayer1Rows[1], weightsLayer1, actOutLayer1Rows[1], self.tensorInW, self.tensorL1InC, self.tensorL1OutC, scaleLayer1])
                         self.of_act_1_2.release(ObjectFifoPort.Produce, self.depthWiseStride)
                         self.actIn.release(ObjectFifoPort.Consume, self.depthWiseStride)
