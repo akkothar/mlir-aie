@@ -390,6 +390,8 @@ struct AIEObjectFifoStatefulTransformPass
       of_elem_index++;
     }
     if (linked) {
+      if (linkOp->getRepeatCount().has_value())
+        numElem *= linkOp->getRepeatCount().value() + 1;
       if (linkOp->isDistribute())
         numElem *= linkOp->getFifoOuts().size();
       else if (linkOp->isJoin())
@@ -655,6 +657,18 @@ struct AIEObjectFifoStatefulTransformPass
     int acqNum = 1;
     int relNum = 1;
 
+    // check for repeat count
+    int repeatCount = 0;
+    if (!dims.getValue().empty()) {
+      auto highestStride = dims.getValue().begin()->getStride() - 1;
+      if (highestStride == 0) {
+        repeatCount = dims.getValue().begin()->getSize();
+        dims = AIE::BDDimLayoutArrayAttr::get(op->getContext(), dims.getValue().drop_front(1));
+      }
+    }
+    if (op.getMemtileRepeat().has_value())
+      repeatCount = op.getMemtileRepeat().value();
+
     // search for the buffers/locks (based on if this objFifo has a link)
     // identify size difference between input and output memrefs
     ObjectFifoCreateOp target = op;
@@ -667,12 +681,20 @@ struct AIEObjectFifoStatefulTransformPass
         auto srcOffsets = linkOp->getSrcOffsets();
         auto dstOffsets = linkOp->getDstOffsets();
 
+        if (target == op) {
+          if (linkOp->getRepeatCount().has_value()) {
+            // +1 for original data movement
+            acqNum *= linkOp->getRepeatCount().value() + 1;
+            relNum *= linkOp->getRepeatCount().value() + 1;
+          }
+        }
+
         if (linkOp->isJoin()) {
           // compute offset and length
           isJoin = true;
           if (target == op) {
-            acqNum = linkOp->getFifoIns().size();
-            relNum = linkOp->getFifoIns().size();
+            acqNum *= linkOp->getFifoIns().size();
+            relNum *= linkOp->getFifoIns().size();
           } else {
             int i = 0;
             for (auto fifoIn : linkOp->getInputObjectFifos()) {
@@ -687,8 +709,8 @@ struct AIEObjectFifoStatefulTransformPass
           // compute offset and length
           isDistribute = true;
           if (target == op) {
-            acqNum = linkOp->getFifoOuts().size();
-            relNum = linkOp->getFifoOuts().size();
+            acqNum *= linkOp->getFifoOuts().size();
+            relNum *= linkOp->getFifoOuts().size();
           } else {
             int i = 0;
             for (auto fifoOut : linkOp->getOutputObjectFifos()) {
@@ -747,16 +769,6 @@ struct AIEObjectFifoStatefulTransformPass
     Block *lastDmaBlock = endBlock->getSinglePredecessor();
     Block *dmaBlock = builder.createBlock(endBlock);
     Block *bdBlock = builder.createBlock(endBlock);
-
-    // check for repeat count in objfifo dims
-    int repeatCount = 1;
-    if (!dims.getValue().empty()) {
-      auto highestStride = dims.getValue().begin()->getStride();
-      if (highestStride == 0) {
-        repeatCount = dims.getValue().begin()->getSize();
-        dims = AIE::BDDimLayoutArrayAttr::get(op->getContext(), dims.getValue().drop_front(1));
-      }
-    }
 
     // create DMA channel
     builder.setInsertionPointToStart(dmaBlock);
