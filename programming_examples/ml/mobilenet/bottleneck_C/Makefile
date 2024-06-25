@@ -13,51 +13,67 @@ mlirFileName = aie
 stride = 1
 VPATH := ${srcdir}/../../../../aie_kernels/aie2
 
-all: build/bn10_conv2dk1_fused_relu.o build/bn10_conv2dk3_dw.o build/bn10_conv2dk1_ui8.o\
-	build/bn11_conv2dk1_fused_relu.o build/bn11_conv2dk3_dw.o build/bn_conv2dk1_skip.o \
-	build/bn12_conv2dk1_fused_relu.o build/bn12_conv2dk3_dw_stride2.o build/bn12_conv2dk1_ui8.o \
-	build/final.xclbin
+pythonSource=aie2_bn13_layer2_with_output_split
+testSource=test_layer2
 
-build/${mlirFileName}.mlir: ${srcdir}/aie2_bn13.py
+pythonSource=aie2_bn13bn14
+testSource=test
+
+OBJ = build/bn13_1_conv2dk1_put.o build/bn13_1_conv2dk1_get.o build/bn13_conv2dk3_dw.o build/bn13_conv2dk1_put.o build/bn13_conv2dk1_skip_get.o build/bn14_1_conv2dk1_put.o build/bn14_1_conv2dk1_get.o build/bn14_conv2dk3_dw.o build/bn14_conv2dk1_put.o build/bn14_conv2dk1_skip_get.o 
+
+
+all: $(OBJ)  build/final.xclbin run_py
+
+# ************************************** bottlneck 13 **************************************
+
+build/bn13_1_conv2dk1_put.o: bn_conv2dk1_i8.cc
+	xchesscc -d ${CHESSCC2_FLAGS} -DBN13_1_PARTIAL_PUT_I8_CAS_WIDTH -c $< -o $@
+
+build/bn13_1_conv2dk1_get.o: bn_conv2dk1_relu.cc
+	xchesscc -d ${CHESSCC2_FLAGS} -DBN13_1_PARTIAL_GET_I8_CAS_WIDTH -c $< -o $@
+
+build/bn13_conv2dk3_dw.o: bn_conv2dk3_dw.cc
+	xchesscc -d ${CHESSCC2_FLAGS} -DSCALAR -DBN13 -DSTRIDE1_OUT_SPLIT -c $< -o $@
+
+#  use when we don't split output of conv 3x3
+# build/bn13_conv2dk3_dw.o: bn_conv2dk3_dw.cc
+# 	xchesscc -d ${CHESSCC2_FLAGS} -DSCALAR -DBN13 -DSTRIDE1 -c $< -o $@
+
+
+build/bn13_conv2dk1_put.o: bn_conv2dk1_i8.cc
+	xchesscc -d ${CHESSCC2_FLAGS} -DBN13_1_INPUT_SPLIT_PARTIAL_PUT_UI8_UI8_CAS_WIDTH -c $< -o $@
+
+# build/conv2dk1_get.o: bn_conv2dk1_relu.cc
+# 	xchesscc -d ${CHESSCC2_FLAGS} -DBN13_1_INPUT_SPLIT_PARTIAL_GET_UI8_UI8_CAS_WIDTH -c $< -o $@
+
+build/bn13_conv2dk1_skip_get.o: bn_conv2dk1_skip.cc
+	xchesscc -d ${CHESSCC2_FLAGS} -DBN13_1_INPUT_SPLIT_PARTIAL_GET_UI8_I8_I8_CAS_WIDTH -c $< -o $@
+
+# ************************************** bottlneck 14 **************************************
+build/bn14_1_conv2dk1_put.o: bn_conv2dk1_i8.cc
+	xchesscc -d ${CHESSCC2_FLAGS} -DBN14_1_PARTIAL_PUT_I8_CAS_WIDTH -c $< -o $@
+
+build/bn14_1_conv2dk1_get.o: bn_conv2dk1_relu.cc
+	xchesscc -d ${CHESSCC2_FLAGS} -DBN14_1_PARTIAL_GET_I8_CAS_WIDTH -c $< -o $@
+
+build/bn14_conv2dk3_dw.o: bn_conv2dk3_dw.cc
+	xchesscc -d ${CHESSCC2_FLAGS} -DSCALAR -DBN14 -DSTRIDE1_OUT_SPLIT -c $< -o $@
+
+
+build/bn14_conv2dk1_put.o: bn_conv2dk1_i8.cc
+	xchesscc -d ${CHESSCC2_FLAGS} -DBN14_1_INPUT_SPLIT_PARTIAL_PUT_UI8_UI8_CAS_WIDTH -c $< -o $@
+
+build/bn14_conv2dk1_skip_get.o: bn_conv2dk1_skip.cc
+	xchesscc -d ${CHESSCC2_FLAGS} -DBN14_1_INPUT_SPLIT_PARTIAL_GET_UI8_I8_I8_CAS_WIDTH -c $< -o $@
+
+build/${mlirFileName}.mlir: ${srcdir}/${pythonSource}.py
 	mkdir -p ${@D}
 	python3 $< > $@
 
 insts.txt: build/${mlirFileName}.mlir
 	aiecc.py -v --aie-only-generate-npu --npu-insts-name=$@ $<
 
-build/bn10_conv2dk1_fused_relu.o: bn_conv2dk1_relu.cc
-	xchesscc -d ${CHESSCC2_FLAGS} -DSCALAR -DBN10 -DINT8_ACT -c $< -o $@
-
-build/bn10_conv2dk3_dw.o: bn_conv2dk3_dw.cc
-	xchesscc -d ${CHESSCC2_FLAGS} -DSCALAR -DBN10   -DUINT8_ACT -c $< -o $@
-
-build/bn10_conv2dk1_ui8.o: bn_conv2dk1_i8.cc
-	mkdir -p ${@D}
-	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DBN10 -DSCALAR  -c $< -o ${@F}
-# bn11
-build/bn11_conv2dk1_fused_relu.o: bn_conv2dk1_relu.cc
-	xchesscc -d ${CHESSCC2_FLAGS} -DSCALAR -DBN11 -DINT8_ACT -c $< -o $@
-
-build/bn11_conv2dk3_dw.o: bn_conv2dk3_dw.cc
-	xchesscc -d ${CHESSCC2_FLAGS} -DSCALAR -DBN11  -DUINT8_ACT -c $< -o $@
-
-build/bn_conv2dk1_skip.o: bn_conv2dk1_skip.cc
-	mkdir -p ${@D}
-	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DSCALAR  -c $< -o ${@F}
-# bn12
-build/bn12_conv2dk1_fused_relu.o: bn_conv2dk1_relu.cc
-	xchesscc -d ${CHESSCC2_FLAGS} -DSCALAR -DBN12 -DINT8_ACT -c $< -o $@
-
-build/bn12_conv2dk3_dw_stride2.o: bn_conv2dk3_dw.cc
-	xchesscc -d ${CHESSCC2_FLAGS} -DSCALAR -DSTRIDE2  -DBN12 -DUINT8_ACT -c $< -o $@
-
-build/bn12_conv2dk1_ui8.o: bn_conv2dk1_i8.cc
-	mkdir -p ${@D}
-	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DBN12 -DSCALAR  -c $< -o ${@F}
-
-build/final.xclbin: build/${mlirFileName}.mlir build/bn10_conv2dk1_fused_relu.o  build/bn10_conv2dk3_dw.o build/bn10_conv2dk1_ui8.o \
-						build/bn11_conv2dk1_fused_relu.o build/bn11_conv2dk3_dw.o build/bn_conv2dk1_skip.o \
-						build/bn12_conv2dk1_fused_relu.o build/bn12_conv2dk3_dw_stride2.o build/bn12_conv2dk1_ui8.o
+build/final.xclbin: build/${mlirFileName}.mlir $(OBJ)
 	cd build && aiecc.py -v --aie-generate-cdo --aie-generate-npu --no-compile-host \
 		--basic-alloc-scheme \
 		--xclbin-name=${@F} --npu-insts-name=insts.txt ${<F}
@@ -68,4 +84,5 @@ clean:
 		*.log aie_partition.json *.bin BOOT.BIN _x test.exe
 
 run_py: 
-	${powershell} python3 ${srcdir}/test.py -x build/final.xclbin -i build/insts.txt -k MLIR_AIE
+	${powershell} python3 ${srcdir}/${testSource}.py -x build/final.xclbin -i build/insts.txt -k MLIR_AIE
+
