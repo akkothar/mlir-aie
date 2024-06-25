@@ -20,31 +20,31 @@ build/aie2_%.mlir: ${srcdir}/aie2_%.py ${srcdir}/aie2_bottleneckA.py ${srcdir}/a
 # insts_.txt: build/${mlirFileName}.mlir
 # 	aiecc.py -v --aie-only-generate-npu --npu-insts-name=$@ $<
 
-build/conv2dk1_fused_relu.o: conv2dk1.cc
+build/conv2dk1_i8.o: bn_conv2dk1_i8.cc
 	mkdir -p ${@D}
-	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DSCALAR -DINT8_ACT -c $< -o ${@F}
+	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS}  -DSCALAR  -DREGULAR -c $< -o ${@F}
+
+build/conv2dk1_fused_relu.o: bn_conv2dk1_relu.cc
+	mkdir -p ${@D}
+	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DSCALAR -DINT8_ACT -DREGULAR -c $< -o ${@F}
 #	xchesscc -d ${CHESSCC2_FLAGS} -DSCALAR -DINT8_ACT -c $< -o $@
 
-build/conv2dk3_dw_stride2.o: conv2dk3_dw.cc
+build/conv2dk3_dw_stride2.o: bn_conv2dk3_dw.cc
 	mkdir -p ${@D}
-	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DSCALAR -DSTRIDE2 -c $< -o ${@F}
+	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DREGULAR  -DSCALAR -DSTRIDE2 -c $< -o ${@F}
 #	xchesscc -d ${CHESSCC2_FLAGS} -DSCALAR -DUINT8_ACT -DSTRIDE2 -c $< -o $@
 
-build/conv2dk3_dw_stride1.o: conv2dk3_dw.cc
+build/conv2dk3_dw_stride1.o: bn_conv2dk3_dw.cc
 	mkdir -p ${@D}
-	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DSCALAR -c $< -o ${@F}
+	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DREGULAR  -DSCALAR  -DSTRIDE1 -c $< -o ${@F}
 
 build/conv2dk1_skip.o: bn_conv2dk1_skip.cc
 	mkdir -p ${@D}
-	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS}  -DSCALAR -c $< -o ${@F}
+	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DREGULAR -DSCALAR -c $< -o ${@F}
 
 build/conv2dk1_skipui8.o: bn_conv2dk1_skip.cc
 	mkdir -p ${@D}
-	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS}  -DSCALAR -DUNSIGNED_SKIP -c $< -o ${@F}
-
-build/conv2dk1_i8.o: conv2dk1_i8.cc
-	mkdir -p ${@D}
-	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS}  -DSCALAR -c $< -o ${@F}
+	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DREGULAR -DSCALAR -DUNSIGNED_SKIP -c $< -o ${@F}
 
 build/combined_con2dk1fusedrelu_conv2dk3dwstride2_conv2dk1.a: build/conv2dk1_fused_relu.o build/conv2dk3_dw_stride2.o build/conv2dk1_i8.o  
 	mkdir -p ${@D}
@@ -85,5 +85,19 @@ run_py_1: build/final_bn_1.xclbin build/insts_bn_1.txt build/aie2_bn_1.mlir
 run_py_0_1: build/final_bn_0_1.xclbin build/insts_bn_0_1.txt build/aie2_bn_0_1.mlir
 	${powershell} python3 ${srcdir}/test_bn_0_1.py -x build/final_bn_0_1.xclbin -i build/insts_bn_0_1.txt -k MLIR_AIE
 
-run_py_2: build/final_bn_2.xclbin build/insts_bn_2.txt build/insts_bn_2.txt
+run_py_2: build/final_bn_2.xclbin build/insts_bn_2.txt build/aie2_bn_2.mlir
 	${powershell} python3 ${srcdir}/test_bn_2.py -x build/final_bn_2.xclbin -i build/insts_bn_2.txt -k MLIR_AIE
+
+run_py_3: build/final_bn_3.xclbin build/insts_bn_3.txt build/aie2_bn_3.mlir
+	${powershell} python3 ${srcdir}/test_bn_3.py -x build/final_bn_3.xclbin -i build/insts_bn_3.txt -k MLIR_AIE
+
+
+run_py_6: build/final_bn_6.xclbin build/insts_bn_6.txt build/aie2_bn_6.mlir
+	${powershell} python3 ${srcdir}/test_bn_6.py -x build/final_bn_6.xclbin -i build/insts_bn_6.txt -k MLIR_AIE
+
+
+run_py_7: build/final_bn_7.xclbin build/insts_bn_7.txt build/aie2_bn_7.mlir
+	${powershell} python3 ${srcdir}/test_bn_7.py -x build/final_bn_7.xclbin -i build/insts_bn_7.txt -k MLIR_AIE
+
+run_py_8: build/final_bn_8.xclbin build/insts_bn_8.txt build/aie2_bn_8.mlir
+	${powershell} python3 ${srcdir}/test_bn_8.py -x build/final_bn_8.xclbin -i build/insts_bn_8.txt -k MLIR_AIE

@@ -15,7 +15,7 @@ from aie.extras.dialects.ext import *
 from aie.extras.dialects.ext.memref import view as memref_view
 
 def mobilenetV3_bn_6_7(tileColIndex = 0,tensorInW = 112, tensorInH = 112, tensorInC = 16, 
-                       bn6_depthWiseStride = 2, bn6_depthWiseChannels = 240, bn6_withSkip = False, bn6_tensorOutC = 80, bn6_scaleFactor1 = 8, bn6_scaleFactor2 = 9, bn6_scaleFactor3 = 11, 
+                       bn6_depthWiseStride = 2, bn6_depthWiseChannels = 240, bn6_withSkip = False, bn6_tensorOutC = 80, bn6_scaleFactor1 = 8, bn6_scaleFactor2 = 8, bn6_scaleFactor3 = 11,  bn6_scaleFactorAdd = 0,
                        bn7_depthWiseChannels = 200, bn7_depthWiseStride = 1, bn7_withSkip = True, bn7_tensorOutC = 80, bn7_scaleFactor1 = 9, bn7_scaleFactor2 = 8, bn7_scaleFactor3 = 11, bn7_scaleFactorAdd = 0,
                        enableTrace = False, trace_size = 16384, traceSizeInInt32s = 4096):
 
@@ -109,7 +109,7 @@ def mobilenetV3_bn_6_7(tileColIndex = 0,tensorInW = 112, tensorInH = 112, tensor
                 
         # Set up compute tiles
         rtpComputeTile2 = Buffer(ComputeTile2, [16], T.i32(), "rtp2")
-        rtpComputeTile3 = Buffer(ComputeTile2, [16], T.i32(), "rtp3")
+        rtpComputeTile3 = Buffer(ComputeTile3, [16], T.i32(), "rtp3")
         
         # Compute tile 6
         bn6_objectArchiveName = "bn6_combined_con2dk1fusedrelu_conv2dk3dwstride%s_conv2dk1%s.a" % (bn6_depthWiseStride, "skip" if (bn6_withSkip) else "")
@@ -152,9 +152,50 @@ def mobilenetV3_bn_6_7(tileColIndex = 0,tensorInW = 112, tensorInH = 112, tensor
                         bn7_tensorLayer1Out_ty, bn7_tensorLayer2Out_ty, 
                         tensorL7_1InW, tensorL7_1InH, tensorL7_1InC, bn7_depthWiseStride, bn7_depthWiseChannels, tensorOutC, bn7_withSkip)
 
+
+         # instruction stream generation
+        activationsInSize32b = (tensorInW * tensorInH * tensorInC) // 4
+        activationsOutSize32b = (tensorOutW * tensorOutH * tensorOutC) // 4
+        activationsInL3_ty = MemRefType.get((activationsInSize32b,), int32_ty)
+        weightsInL3_ty = MemRefType.get((total_weights,), int32_ty)
+        activationsOutL3_ty = MemRefType.get((activationsOutSize32b,), int32_ty)
+
+        @FuncOp.from_py_func(activationsInL3_ty, weightsInL3_ty, activationsOutL3_ty)
+        def sequence(inputFromL3, weightsFromL3, outputToL3):
+            NpuWriteRTPOp("rtp2", col=tileColIndex, row=2, index=0, value=bn6_scaleFactor1)
+            NpuWriteRTPOp("rtp2", col=tileColIndex, row=2, index=1, value=bn6_scaleFactor2)
+            NpuWriteRTPOp("rtp2", col=tileColIndex, row=2, index=2, value=bn6_scaleFactor3)
+            NpuWriteRTPOp("rtp2", col=tileColIndex, row=2, index=3, value=bn6_scaleFactorAdd)
+
+
+            NpuWriteRTPOp("rtp3", col=tileColIndex, row=3, index=0, value=bn7_scaleFactor1)
+            NpuWriteRTPOp("rtp3", col=tileColIndex, row=3, index=1, value=bn7_scaleFactor2)
+            NpuWriteRTPOp("rtp3", col=tileColIndex, row=3, index=2, value=bn7_scaleFactor3)
+            NpuWriteRTPOp("rtp3", col=tileColIndex, row=3, index=3, value=bn7_scaleFactorAdd)
+            
+            npu_dma_memcpy_nd(
+                metadata="act_in",
+                bd_id=0,
+                mem=inputFromL3,
+                sizes=[1, 1, 1, activationsInSize32b],
+            )
+            npu_dma_memcpy_nd(
+                metadata="act_out",
+                bd_id=2,
+                mem=outputToL3,
+                sizes=[1, 1, 1, activationsOutSize32b],
+            )
+            npu_dma_memcpy_nd(
+                metadata="wts_OF_L3L2",
+                bd_id=1,
+                mem=weightsFromL3,
+                sizes=[1, 1, 1, total_weights],
+            )
+            npu_sync(column=0, row=0, direction=0, channel=0)
+
 with mlir_mod_ctx() as ctx:
     mobilenetV3_bn_6_7(tileColIndex = 0,tensorInW = 28, tensorInH = 28, tensorInC = 40, 
-                    bn6_depthWiseStride = 2, bn6_depthWiseChannels = 240, bn6_withSkip = False, bn6_tensorOutC = 80, bn6_scaleFactor1 = 8, bn6_scaleFactor2 = 9, bn6_scaleFactor3 = 11, 
+                    bn6_depthWiseStride = 2, bn6_depthWiseChannels = 240, bn6_withSkip = False, bn6_tensorOutC = 80, bn6_scaleFactor1 = 8, bn6_scaleFactor2 = 8, bn6_scaleFactor3 = 11,  bn6_scaleFactorAdd = 0,
                     bn7_depthWiseStride = 1, bn7_depthWiseChannels = 200, bn7_withSkip = True, bn7_tensorOutC = 80, bn7_scaleFactor1 = 9, bn7_scaleFactor2 = 8, bn7_scaleFactor3 = 11, bn7_scaleFactorAdd = 0,
                     enableTrace = False, trace_size = 16384, traceSizeInInt32s = 4096)
     

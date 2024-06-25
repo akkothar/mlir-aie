@@ -1,0 +1,68 @@
+#
+# This file is licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# Copyright (C) 2024, Advanced Micro Devices, Inc.
+srcdir := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+
+include ${srcdir}/../../../makefile-common
+
+VPATH := ${srcdir}/../../../../aie_kernels/aie2
+
+OBJ = build/bn6_combined_con2dk1fusedrelu_conv2dk3dwstride2_conv2dk1.a build/bn7_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a
+
+
+all: build/final_bn_chain.xclbin run_py_bn_chain
+
+build/aie2_bn_chain.mlir: ${srcdir}/aie2_bn_chain.py 
+	mkdir -p ${@D}
+	python3 $< > $@
+
+# insts_bn_chain.txt: build/aie2_bn_chain.mlir
+# 	aiecc.py -v --aie-only-generate-npu --npu-insts-name=$@ $<
+
+# ****************************************************************************************
+build/bn6_conv2dk1_fused_relu.o: bn_conv2dk1_relu.cc
+	mkdir -p ${@D}
+	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DSCALAR -DBN6 -DINT8_ACT -c $< -o ${@F}
+build/bn6_conv2dk3_dw_stride2.o: bn_conv2dk3_dw.cc
+	mkdir -p ${@D}
+	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DBN6  -DSCALAR -DSTRIDE2 -c $< -o ${@F}
+build/bn6_conv2dk1_i8.o: bn_conv2dk1_i8.cc
+	mkdir -p ${@D}
+	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS}  -DSCALAR -DBN6 -c $< -o ${@F}
+
+
+build/bn7_conv2dk1_fused_relu.o: bn_conv2dk1_relu.cc
+	mkdir -p ${@D}
+	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DSCALAR -DBN7 -DINT8_ACT -c $< -o ${@F}
+
+build/bn7_conv2dk3_dw_stride1.o: bn_conv2dk3_dw.cc
+	mkdir -p ${@D}
+	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DBN7  -DSCALAR  -DSTRIDE1 -c $< -o ${@F}
+build/bn7_conv2dk1_skip.o: bn_conv2dk1_skip.cc
+	mkdir -p ${@D}
+	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DBN7 -DSCALAR -c $< -o ${@F}
+
+build/bn6_combined_con2dk1fusedrelu_conv2dk3dwstride2_conv2dk1.a: build/bn6_conv2dk1_fused_relu.o build/bn6_conv2dk3_dw_stride2.o build/bn6_conv2dk1_i8.o  
+	mkdir -p ${@D}
+	ar rvs $@ $< $(word 2,$^) $(word 3,$^)
+
+build/bn7_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a: build/bn7_conv2dk1_fused_relu.o build/bn7_conv2dk3_dw_stride1.o build/bn7_conv2dk1_skip.o  
+	mkdir -p ${@D}
+	ar rvs $@ $< $(word 2,$^) $(word 3,$^)
+
+
+build/final_bn_chain.xclbin: build/aie2_bn_chain.mlir  $(OBJ)
+	cd build && aiecc.py -v --aie-generate-cdo --aie-generate-npu --no-compile-host \
+		--basic-alloc-scheme \
+		--xclbin-name=${@F} --npu-insts-name=insts.txt ${<F}
+
+run_py_bn_chain: 
+	${powershell} python3 ${srcdir}/test_bn_chain.py -x build/final_bn_chain.xclbin -i build/insts.txt -k MLIR_AIE
+
+clean:
+	rm -rf build *.elf* *.lst *.bif ${mlirFileName}.mlir.prj log .xclbin sim \
+		chess* *.o insts.txt \
+		*.log aie_partition.json *.bin BOOT.BIN _x test.exe
