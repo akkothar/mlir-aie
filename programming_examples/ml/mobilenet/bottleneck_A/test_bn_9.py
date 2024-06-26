@@ -31,28 +31,28 @@ tensorInH = 14
 tensorInC = 80
 tensorOutC = tensorInC
 
-bneck_8_depthwiseStride = 1
-bneck_8_depthWiseChannels = 184
+bneck_9_depthwiseStride = 1
+bneck_9_depthWiseChannels = 184
 
-bneck_8_InW1 = tensorInW
-bneck_8_InH1 = tensorInH
-bneck_8_InC1 = tensorInC
-bneck_8_OutC1 = bneck_8_depthWiseChannels
+bneck_9_InW1 = tensorInW
+bneck_9_InH1 = tensorInH
+bneck_9_InC1 = tensorInC
+bneck_9_OutC1 = bneck_9_depthWiseChannels
 
-bneck_8_InW2 = bneck_8_InW1
-bneck_8_InH2 = bneck_8_InH1
-bneck_8_OutC2 = bneck_8_OutC1
+bneck_9_InW2 = bneck_9_InW1
+bneck_9_InH2 = bneck_9_InH1
+bneck_9_OutC2 = bneck_9_OutC1
 
-bneck_8_InW3 = bneck_8_InW2
-bneck_8_InH3 = bneck_8_InH2
-bneck_8_OutC3 = bneck_8_InC1
+bneck_9_InW3 = bneck_9_InW2
+bneck_9_InH3 = bneck_9_InH2
+bneck_9_OutC3 = bneck_9_InC1
 
-bneck_8_InC1_vec =  math.floor(bneck_8_InC1/vectorSize)
-bneck_8_OutC3_vec =  math.floor(bneck_8_OutC3/vectorSize)
+bneck_9_InC1_vec =  math.floor(bneck_9_InC1/vectorSize)
+bneck_9_OutC3_vec =  math.floor(bneck_9_OutC3/vectorSize)
 
 
 def main(opts):
-    design = "mobilenet_bottleneck_A_bn8"
+    design = "mobilenet_bottleneck_A_bn9"
     xclbin_path = opts.xclbin
     insts_path = opts.instr
 
@@ -74,15 +74,15 @@ def main(opts):
     dtype_wts = np.dtype("int8")
     dtype_out = np.dtype("int8")
 
-    shape_total_wts = (bneck_8_InC1*bneck_8_OutC1 + 3*3*bneck_8_OutC2 + bneck_8_OutC2*bneck_8_OutC3, 1)
-    shape_in_act = (bneck_8_InH1, bneck_8_InC1_vec, bneck_8_InW1, vectorSize)  #'YCXC8' , 'CYX'
-    shape_out = (bneck_8_InH3, bneck_8_OutC3_vec, bneck_8_InW3, vectorSize) # HCWC8
-    shape_out_final = (bneck_8_OutC3_vec*vectorSize, bneck_8_InH3, bneck_8_InW3) # CHW
+    shape_total_wts = (bneck_9_InC1*bneck_9_OutC1 + 3*3*bneck_9_OutC2 + bneck_9_OutC2*bneck_9_OutC3, 1)
+    shape_in_act = (bneck_9_InH1, bneck_9_InC1_vec, bneck_9_InW1, vectorSize)  #'YCXC8' , 'CYX'
+    shape_out = (bneck_9_InH3, bneck_9_OutC3_vec, bneck_9_InW3, vectorSize) # HCWC8
+    shape_out_final = (bneck_9_OutC3_vec*vectorSize, bneck_9_InH3, bneck_9_InW3) # CHW
     
     # ------------------------------------------------------
     # Initialize activation, weights, scaling factor for int8 model
     # ------------------------------------------------------
-    input = torch.randn(1, bneck_8_InC1_vec*vectorSize, bneck_8_InH1, bneck_8_InW1)
+    input = torch.randn(1, bneck_9_InC1_vec*vectorSize, bneck_9_InH1, bneck_9_InW1)
     # ------------------------------------------------------
     # Get device, load the xclbin & kernel and register them
     # ------------------------------------------------------
@@ -99,7 +99,7 @@ def main(opts):
         trace_size=trace_size,
     )
     class QuantBottleneckA(nn.Module):
-        def __init__(self, in_planes=16, bn8_expand=16,bn8_project=16):
+        def __init__(self, in_planes=16, bn9_expand=16,bn9_project=16):
             super(QuantBottleneckA, self).__init__()
             self.quant_id_1 = QuantIdentity(
                 act_quant=Int8ActPerTensorFixedPoint,
@@ -107,9 +107,9 @@ def main(opts):
                 return_quant_tensor=True,
             )
 
-            self.bn8_quant_conv1 = QuantConv2d(
+            self.bn9_quant_conv1 = QuantConv2d(
                 in_planes,
-                bn8_expand,
+                bn9_expand,
                 kernel_size=1,
                 bit_width=8,
                 weight_bit_width=8,
@@ -117,23 +117,23 @@ def main(opts):
                 weight_quant=Int8WeightPerTensorFixedPoint,
                 return_quant_tensor=True,
             )
-            self.bn8_quant_conv2 = QuantConv2d(
-                bn8_expand,
-                bn8_expand,
+            self.bn9_quant_conv2 = QuantConv2d(
+                bn9_expand,
+                bn9_expand,
                 kernel_size=3,
-                stride=bneck_8_depthwiseStride,
+                stride=bneck_9_depthwiseStride,
                 padding=1,
                 padding_mode="zeros",
                 bit_width=8,
-                groups=bn8_expand,
+                groups=bn9_expand,
                 weight_bit_width=8,
                 bias=False,
                 weight_quant=Int8WeightPerTensorFixedPoint,
                 return_quant_tensor=True,
             )
-            self.bn8_quant_conv3 = QuantConv2d(
-                bn8_expand,
-                bn8_project,
+            self.bn9_quant_conv3 = QuantConv2d(
+                bn9_expand,
+                bn9_project,
                 kernel_size=1,
                 bit_width=8,
                 weight_bit_width=8,
@@ -141,17 +141,17 @@ def main(opts):
                 weight_quant=Int8WeightPerTensorFixedPoint,
                 return_quant_tensor=True,
             )
-            self.bn8_quant_relu1 = QuantReLU(
+            self.bn9_quant_relu1 = QuantReLU(
                 act_quant=Uint8ActPerTensorFixedPoint,
                 bit_width=8,
                 return_quant_tensor=True,
             )
-            self.bn8_quant_relu2 = QuantReLU(
+            self.bn9_quant_relu2 = QuantReLU(
                 act_quant=Uint8ActPerTensorFixedPoint,
                 bit_width=8,
                 return_quant_tensor=True,
             )
-            self.bn8_add = QuantIdentity(
+            self.bn9_add = QuantIdentity(
                 act_quant=Int8ActPerTensorFixedPoint,
                 bit_width=8,
                 return_quant_tensor=True,
@@ -159,17 +159,17 @@ def main(opts):
 
         def forward(self, x):
             out_q = self.quant_id_1(x)
-            out = self.bn8_quant_conv1(out_q)
-            out = self.bn8_quant_relu1(out)
-            out = self.bn8_quant_conv2(out)
-            out = self.bn8_quant_relu2(out)
-            out = self.bn8_quant_conv3(out)
+            out = self.bn9_quant_conv1(out_q)
+            out = self.bn9_quant_relu1(out)
+            out = self.bn9_quant_conv2(out)
+            out = self.bn9_quant_relu2(out)
+            out = self.bn9_quant_conv3(out)
             out = self.quant_id_1(out)
             out = out+out_q
-            out = self.bn8_add(out)
+            out = self.bn9_add(out)
             return out
 
-    quant_bottleneck_model = QuantBottleneckA(in_planes=bneck_8_InC1, bn8_expand=bneck_8_OutC1,bn8_project=bneck_8_OutC3)
+    quant_bottleneck_model = QuantBottleneckA(in_planes=bneck_9_InC1, bn9_expand=bneck_9_OutC1,bn9_project=bneck_9_OutC3)
     quant_bottleneck_model.eval()
     
     q_bottleneck_out = quant_bottleneck_model(input)
@@ -180,35 +180,35 @@ def main(opts):
 
 
  
-    block_8_inp_scale1= quant_bottleneck_model.quant_id_1.quant_act_scale()
+    block_9_inp_scale1= quant_bottleneck_model.quant_id_1.quant_act_scale()
 
-    block_8_relu_1 = quant_bottleneck_model.bn8_quant_relu1.quant_act_scale()
-    block_8_relu_2 = quant_bottleneck_model.bn8_quant_relu2.quant_act_scale()
-    block_8_skip_add = quant_bottleneck_model.bn8_add.quant_act_scale()
+    block_9_relu_1 = quant_bottleneck_model.bn9_quant_relu1.quant_act_scale()
+    block_9_relu_2 = quant_bottleneck_model.bn9_quant_relu2.quant_act_scale()
+    block_9_skip_add = quant_bottleneck_model.bn9_add.quant_act_scale()
 
-    block_8_weight_scale1 = quant_bottleneck_model.bn8_quant_conv1.quant_weight_scale()
-    block_8_weight_scale2 = quant_bottleneck_model.bn8_quant_conv2.quant_weight_scale()
-    block_8_weight_scale3 = quant_bottleneck_model.bn8_quant_conv3.quant_weight_scale()
-    block_8_combined_scale1 = -torch.log2(
-        block_8_inp_scale1 * block_8_weight_scale1 / block_8_relu_1
+    block_9_weight_scale1 = quant_bottleneck_model.bn9_quant_conv1.quant_weight_scale()
+    block_9_weight_scale2 = quant_bottleneck_model.bn9_quant_conv2.quant_weight_scale()
+    block_9_weight_scale3 = quant_bottleneck_model.bn9_quant_conv3.quant_weight_scale()
+    block_9_combined_scale1 = -torch.log2(
+        block_9_inp_scale1 * block_9_weight_scale1 / block_9_relu_1
     )
-    block_8_combined_scale2 = -torch.log2(
-        block_8_relu_1 * block_8_weight_scale2 / block_8_relu_2
+    block_9_combined_scale2 = -torch.log2(
+        block_9_relu_1 * block_9_weight_scale2 / block_9_relu_2
     )  
-    block_8_combined_scale3 = -torch.log2(
-        block_8_relu_2 * block_8_weight_scale3/block_8_inp_scale1
+    block_9_combined_scale3 = -torch.log2(
+        block_9_relu_2 * block_9_weight_scale3/block_9_inp_scale1
     )   
-    block_8_combined_scale_skip = -torch.log2(
-        block_8_inp_scale1 / block_8_skip_add
+    block_9_combined_scale_skip = -torch.log2(
+        block_9_inp_scale1 / block_9_skip_add
     )  # After addition | clip -128-->127
 
 
 
     print("********************BN8*******************************")
-    print("combined_scale after conv1x1:", block_8_combined_scale1.item())
-    print("combined_scale after conv3x3:", block_8_combined_scale2.item())
-    print("combined_scale after conv1x1:", block_8_combined_scale3.item())
-    print("combined_scale after skip add:", block_8_combined_scale_skip.item())
+    print("combined_scale after conv1x1:", block_9_combined_scale1.item())
+    print("combined_scale after conv3x3:", block_9_combined_scale2.item())
+    print("combined_scale after conv1x1:", block_9_combined_scale3.item())
+    print("combined_scale after skip add:", block_9_combined_scale_skip.item())
     print("********************BN8*******************************")
 
     # print("combined_scale after conv1x1:", ( block_0_relu_2 * block_0_weight_scale3).item())
@@ -217,13 +217,13 @@ def main(opts):
     # Reorder input data-layout
     # ------------------------------------------------------
 
-    block_8_int_weight_1 = quant_bottleneck_model.bn8_quant_conv1.quant_weight().int(
+    block_9_int_weight_1 = quant_bottleneck_model.bn9_quant_conv1.quant_weight().int(
         float_datatype=True
     )
-    block_8_int_weight_2 = quant_bottleneck_model.bn8_quant_conv2.quant_weight().int(
+    block_9_int_weight_2 = quant_bottleneck_model.bn9_quant_conv2.quant_weight().int(
         float_datatype=True
     )
-    block_8_int_weight_3 = quant_bottleneck_model.bn8_quant_conv3.quant_weight().int(
+    block_9_int_weight_3 = quant_bottleneck_model.bn9_quant_conv3.quant_weight().int(
         float_datatype=True
     )
 
@@ -239,19 +239,19 @@ def main(opts):
     ifm_mem_fmt = ds.reorder_mat(before_input, "YCXC8", "CYX")
     ifm_mem_fmt.tofile(log_folder + "/after_ifm_mem_fmt.txt", sep=",", format="%d")
 
-    # **************************** bn8 ****************************
-    bn8_wts1 = ds.reorder_mat(
-        block_8_int_weight_1.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
+    # **************************** bn9 ****************************
+    bn9_wts1 = ds.reorder_mat(
+        block_9_int_weight_1.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
     )
-    bn8_wts2 = ds.reorder_mat(
-        block_8_int_weight_2.data.numpy().astype(dtype_wts), "OIYXI1O8", "OIYX"
+    bn9_wts2 = ds.reorder_mat(
+        block_9_int_weight_2.data.numpy().astype(dtype_wts), "OIYXI1O8", "OIYX"
     )
-    bn8_wts3 = ds.reorder_mat(
-        block_8_int_weight_3.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
+    bn9_wts3 = ds.reorder_mat(
+        block_9_int_weight_3.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
     )
 
 
-    total_wts = np.concatenate((bn8_wts1, bn8_wts2, bn8_wts3), axis=None)
+    total_wts = np.concatenate((bn9_wts1, bn9_wts2, bn9_wts3), axis=None)
 
     total_wts.tofile(log_folder + "/after_weights_mem_fmt_final.txt", sep=",", format="%d")
     print(total_wts.shape)

@@ -48,7 +48,7 @@ build/final_bn_2_3.xclbin: build/aie2_bn_2_3.mlir  $(OBJ)
 		--basic-alloc-scheme \
 		--xclbin-name=${@F} --npu-insts-name=insts.txt ${<F}
 
-run_py_bn_2_3: 
+run_py_bn_2_3: build/final_bn_2_3.xclbin build/aie2_bn_2_3.mlir
 	${powershell} python3 ${srcdir}/test_bn_2_3.py -x build/final_bn_2_3.xclbin -i build/insts.txt -k MLIR_AIE
 
 clean:

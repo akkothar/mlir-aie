@@ -31,7 +31,7 @@ tensorInH = 56
 tensorInC = 24
 tensorOutC = 40
 
-depthwiseStride = 1
+depthwiseStride = 2
 depthWiseChannels = 72
 
 bneck_1_InW1 = tensorInW
