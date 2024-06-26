@@ -99,7 +99,7 @@ def mobilenetV3Bottleneck2And3(tileRowIndex = 2, tileColIndex = 0, tensorInW = 5
         # AIE-array data movement with object fifos
         
         # Input
-        act_in = object_fifo("act_in", ShimTile, ComputeTile, 2, tensorLayer0_1In_ty )
+        act_in = object_fifo("act_in", ShimTile, ComputeTile, [3,3], tensorLayer0_1In_ty )
         
         # wts
         wts_OF_L3L1 = object_fifo("wts_OF_L3L1", ShimTile, ComputeTile, 1, weightsAllLayers_ty)
@@ -108,10 +108,10 @@ def mobilenetV3Bottleneck2And3(tileRowIndex = 2, tileColIndex = 0, tensorInW = 5
         # act_out = object_fifo("act_out", ComputeTile, [ShimTile], 1, tensorLayer1_3Out_ty)
         
         # Intermediate
-        of_act_bn0_1_2 = object_fifo("act_bn0_1_2", ComputeTile, ComputeTile, 3, tensorLayer0_1Out_ty)
+        of_act_bn0_1_2 = object_fifo("act_bn0_1_2", ComputeTile, ComputeTile, [3,3], tensorLayer0_1Out_ty)
         of_act_bn0_2_3 = object_fifo("act_bn0_2_3", ComputeTile, ComputeTile, 1, tensorLayer0_2Out_ty)
         of_act_bn0_bn1 = object_fifo("act_bn0_bn1", ComputeTile, ComputeTile, 1, tensorLayer0_3Out_ty)
-        of_act_bn1_1_2 = object_fifo("act_bn1_1_2", ComputeTile, ShimTile, 3, tensorLayer1_1Out_ty)
+        of_act_bn1_1_2 = object_fifo("act_bn1_1_2", ComputeTile, ShimTile, [3,3], tensorLayer1_1Out_ty)
         # of_act_bn1_2_3 = object_fifo("act_bn1_2_3", ComputeTile, ComputeTile, 1, tensorLayer1_2Out_ty)
         
         # Set up compute tiles
@@ -272,11 +272,11 @@ def mobilenetV3Bottleneck2And3(tileRowIndex = 2, tileColIndex = 0, tensorInW = 5
                 of_act_bn0_2_3.release(ObjectFifoPort.Consume, 1)
                 of_act_bn0_bn1.release(ObjectFifoPort.Produce, 1)
 
-                # # # actInLayer1_1Row = of_act_bn0_bn1.acquire(ObjectFifoPort.Consume, 1)
-                # # # actOutLayer1_1Row = of_act_bn1_1_2.acquire(ObjectFifoPort.Produce, 1)
-                # # # call(conv2dk1_relu_i8_ui8, [actInLayer1_1Row, weightsLayer1_1, actOutLayer1_1Row, tensorInW, tensorL1_1InC, tensorL1_1OutC, scaleLayer1_1])
-                # # # of_act_bn0_bn1.release(ObjectFifoPort.Consume, 1)
-                # # # of_act_bn1_1_2.release(ObjectFifoPort.Produce, 1)
+                actInLayer1_1Row = of_act_bn0_bn1.acquire(ObjectFifoPort.Consume, 1)
+                actOutLayer1_1Row = of_act_bn1_1_2.acquire(ObjectFifoPort.Produce, 1)
+                call(bn3_conv2dk1_relu_i8_ui8, [actInLayer1_1Row, weightsLayer1_1, actOutLayer1_1Row, tensorInW, tensorL1_1InC, tensorL1_1OutC, scaleLayer1_1])
+                of_act_bn0_bn1.release(ObjectFifoPort.Consume, 1)
+                of_act_bn1_1_2.release(ObjectFifoPort.Produce, 1)
                 
                 #  # post-amble 1
                 actInLayer0_1Rows = act_in.acquire(ObjectFifoPort.Consume, 1)
@@ -298,11 +298,11 @@ def mobilenetV3Bottleneck2And3(tileRowIndex = 2, tileColIndex = 0, tensorInW = 5
                 of_act_bn0_2_3.release(ObjectFifoPort.Consume, 1)
                 of_act_bn0_bn1.release(ObjectFifoPort.Produce, 1)
 
-                # actInLayer1_1Row = of_act_bn0_bn1.acquire(ObjectFifoPort.Consume, 1)
-                # actOutLayer1_1Row = of_act_bn1_1_2.acquire(ObjectFifoPort.Produce, 1)
-                # call(conv2dk1_relu_i8_ui8, [actInLayer1_1Row, weightsLayer1_1, actOutLayer1_1Row, tensorInW, tensorL1_1InC, tensorL1_1OutC, scaleLayer1_1])
-                # of_act_bn0_bn1.release(ObjectFifoPort.Consume, 1)
-                # of_act_bn1_1_2.release(ObjectFifoPort.Produce, 1)
+                actInLayer1_1Row = of_act_bn0_bn1.acquire(ObjectFifoPort.Consume, 1)
+                actOutLayer1_1Row = of_act_bn1_1_2.acquire(ObjectFifoPort.Produce, 1)
+                call(bn3_conv2dk1_relu_i8_ui8, [actInLayer1_1Row, weightsLayer1_1, actOutLayer1_1Row, tensorInW, tensorL1_1InC, tensorL1_1OutC, scaleLayer1_1])
+                of_act_bn0_bn1.release(ObjectFifoPort.Consume, 1)
+                of_act_bn1_1_2.release(ObjectFifoPort.Produce, 1)
 
                 # actInLayer1_2Rows = of_act_bn1_1_2.acquire(ObjectFifoPort.Consume, 3)
                 # actOutLayer1_2Row = of_act_bn1_2_3.acquire(ObjectFifoPort.Produce, 1)

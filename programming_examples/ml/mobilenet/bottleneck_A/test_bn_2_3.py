@@ -22,6 +22,13 @@ from brevitas.quant.fixed_point import (
     Int8WeightPerTensorFixedPoint,
     Uint8ActPerTensorFixedPoint,
 )
+def convert_to_numpy(array):
+    if isinstance(array, np.ndarray):
+        return array
+    elif isinstance(array, torch.Tensor):
+        return array.cpu().numpy()
+    else:
+        raise TypeError("Unsupported array type")
 torch.use_deterministic_algorithms(True)
 torch.manual_seed(0)
 vectorSize=8
@@ -91,7 +98,7 @@ def main(opts):
     # ------------------------------------------------------
     dtype_in = np.dtype("int8")
     dtype_wts = np.dtype("int8")
-    dtype_out = np.dtype("int8")
+    dtype_out = np.dtype("uint8")
 
     shape_total_wts = (bneck_2_InC1*bneck_2_OutC1+3*3*bneck_2_OutC2 + bneck_2_OutC2*bneck_2_OutC3 + bneck_3_InC1*bneck_3_OutC1 + 3*3*bneck_3_OutC2 + bneck_3_OutC2*bneck_3_OutC3, 1)
     shape_total_wts = (bneck_2_InC1*bneck_2_OutC1+3*3*bneck_2_OutC2 + bneck_2_OutC2*bneck_2_OutC3 + bneck_3_InC1*bneck_3_OutC1, 1)
@@ -404,7 +411,23 @@ def main(opts):
     # Compare the AIE output and the golden reference
     # ------------------------------------------------------
     print("\nAvg NPU time: {}us.".format(int((npu_time_total / num_iter) / 1000)))
+    # Create a tensor of zeros with the same shape as 'tensor'
+    zeros_tensor = torch.zeros_like(ofm_mem_fmt_out)
 
+    # Check if 'tensor' is all zero
+    is_all_zero = torch.allclose(ofm_mem_fmt_out, zeros_tensor)
+    golden=convert_to_numpy(golden_output)
+    ofm_mem_fmt_out=convert_to_numpy(ofm_mem_fmt_out)
+    max_difference = np.max((golden)-(ofm_mem_fmt_out))
+    print("Max:",max_difference)
+            # Find indices where the arrays differ
+    print(golden.shape)
+    if golden.shape != ofm_mem_fmt_out.shape:
+        raise ValueError("The input arrays must have the same shape")
+    print("hello gg")
+    tolerance = 2
+    different_indices = np.argwhere(np.abs(golden - ofm_mem_fmt_out) > tolerance)
+    
     if np.allclose(
         ofm_mem_fmt_out,
         golden_output,
@@ -416,6 +439,11 @@ def main(opts):
         exit(0)
     else:
         print("\nFailed.\n")
+        for index in different_indices:
+            idx_tuple = tuple(index)
+            print(f"Index {idx_tuple}: GOLDEN has {golden_output[idx_tuple]}, AIE has {ofm_mem_fmt_out[idx_tuple]}")
+
+        
         exit(-1)
 
 
