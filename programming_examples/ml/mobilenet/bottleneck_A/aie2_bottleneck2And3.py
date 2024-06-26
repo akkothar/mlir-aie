@@ -110,8 +110,8 @@ def mobilenetV3Bottleneck2And3(tileRowIndex = 2, tileColIndex = 0, tensorInW = 5
         # Intermediate
         of_act_bn0_1_2 = object_fifo("act_bn0_1_2", ComputeTile, ComputeTile, 3, tensorLayer0_1Out_ty)
         of_act_bn0_2_3 = object_fifo("act_bn0_2_3", ComputeTile, ComputeTile, 1, tensorLayer0_2Out_ty)
-        of_act_bn0_bn1 = object_fifo("act_bn0_bn1", ComputeTile, ShimTile, 1, tensorLayer0_3Out_ty)
-        # of_act_bn1_1_2 = object_fifo("act_bn1_1_2", ComputeTile, ShimTile, 3, tensorLayer1_1Out_ty)
+        of_act_bn0_bn1 = object_fifo("act_bn0_bn1", ComputeTile, ComputeTile, 1, tensorLayer0_3Out_ty)
+        of_act_bn1_1_2 = object_fifo("act_bn1_1_2", ComputeTile, ShimTile, 3, tensorLayer1_1Out_ty)
         # of_act_bn1_2_3 = object_fifo("act_bn1_2_3", ComputeTile, ComputeTile, 1, tensorLayer1_2Out_ty)
         
         # Set up compute tiles
@@ -161,11 +161,11 @@ def mobilenetV3Bottleneck2And3(tileRowIndex = 2, tileColIndex = 0, tensorInW = 5
                 of_act_bn0_2_3.release(ObjectFifoPort.Consume, 1)
                 of_act_bn0_bn1.release(ObjectFifoPort.Produce, 1)
 
-                # actInLayer1_1Row = of_act_bn0_bn1.acquire(ObjectFifoPort.Consume, 1)
-                # actOutLayer1_1Row = of_act_bn1_1_2.acquire(ObjectFifoPort.Produce, 1)
-                # call(bn3_conv2dk1_relu_i8_ui8, [actInLayer1_1Row, weightsLayer1_1, actOutLayer1_1Row, tensorInW, tensorL1_1InC, tensorL1_1OutC, scaleLayer1_1])
-                # of_act_bn0_bn1.release(ObjectFifoPort.Consume, 1)
-                # of_act_bn1_1_2.release(ObjectFifoPort.Produce, 1)
+                actInLayer1_1Row = of_act_bn0_bn1.acquire(ObjectFifoPort.Consume, 1)
+                actOutLayer1_1Row = of_act_bn1_1_2.acquire(ObjectFifoPort.Produce, 1)
+                call(bn3_conv2dk1_relu_i8_ui8, [actInLayer1_1Row, weightsLayer1_1, actOutLayer1_1Row, tensorInW, tensorL1_1InC, tensorL1_1OutC, scaleLayer1_1])
+                of_act_bn0_bn1.release(ObjectFifoPort.Consume, 1)
+                of_act_bn1_1_2.release(ObjectFifoPort.Produce, 1)
 
                 # pre-amble 1: rows 2 in layer 0_1 1x1 conv; row 1 in layer 0_2 3x3 dw; row 1 in layer 0_3 1x1 conv; row 1 on layer 1_1 1x1 conv; row 0 on layer 1_2 3x3 dw
 
@@ -189,11 +189,11 @@ def mobilenetV3Bottleneck2And3(tileRowIndex = 2, tileColIndex = 0, tensorInW = 5
                 of_act_bn0_2_3.release(ObjectFifoPort.Consume, 1)
                 of_act_bn0_bn1.release(ObjectFifoPort.Produce, 1)
 
-                # actInLayer1_1Row = of_act_bn0_bn1.acquire(ObjectFifoPort.Consume, 1)
-                # actOutLayer1_1Row = of_act_bn1_1_2.acquire(ObjectFifoPort.Produce, 1)
-                # call(bn3_conv2dk1_relu_i8_ui8, [actInLayer1_1Row, weightsLayer1_1, actOutLayer1_1Row, tensorInW, tensorL1_1InC, tensorL1_1OutC, scaleLayer1_1])
-                # of_act_bn0_bn1.release(ObjectFifoPort.Consume, 1)
-                # of_act_bn1_1_2.release(ObjectFifoPort.Produce, 1)
+                actInLayer1_1Row = of_act_bn0_bn1.acquire(ObjectFifoPort.Consume, 1)
+                actOutLayer1_1Row = of_act_bn1_1_2.acquire(ObjectFifoPort.Produce, 1)
+                call(bn3_conv2dk1_relu_i8_ui8, [actInLayer1_1Row, weightsLayer1_1, actOutLayer1_1Row, tensorInW, tensorL1_1InC, tensorL1_1OutC, scaleLayer1_1])
+                of_act_bn0_bn1.release(ObjectFifoPort.Consume, 1)
+                of_act_bn1_1_2.release(ObjectFifoPort.Produce, 1)
 
                 # actInLayer1_2Rows = of_act_bn1_1_2.acquire(ObjectFifoPort.Consume, 2)
                 # actOutLayer1_2Row = of_act_bn1_2_3.acquire(ObjectFifoPort.Produce, 1)
@@ -229,11 +229,11 @@ def mobilenetV3Bottleneck2And3(tileRowIndex = 2, tileColIndex = 0, tensorInW = 5
                         of_act_bn0_2_3.release(ObjectFifoPort.Consume, 1)
                         of_act_bn0_bn1.release(ObjectFifoPort.Produce, 1)
 
-                        # actInLayer1_1Row = of_act_bn0_bn1.acquire(ObjectFifoPort.Consume, 1)
-                        # actOutLayer1_1Row = of_act_bn1_1_2.acquire(ObjectFifoPort.Produce, 1)
-                        # call(bn3_conv2dk1_relu_i8_ui8, [actInLayer1_1Row, weightsLayer1_1, actOutLayer1_1Row, tensorInW, tensorL1_1InC, tensorL1_1OutC, scaleLayer1_1])
-                        # of_act_bn0_bn1.release(ObjectFifoPort.Consume, 1)
-                        # of_act_bn1_1_2.release(ObjectFifoPort.Produce, 1)
+                        actInLayer1_1Row = of_act_bn0_bn1.acquire(ObjectFifoPort.Consume, 1)
+                        actOutLayer1_1Row = of_act_bn1_1_2.acquire(ObjectFifoPort.Produce, 1)
+                        call(bn3_conv2dk1_relu_i8_ui8, [actInLayer1_1Row, weightsLayer1_1, actOutLayer1_1Row, tensorInW, tensorL1_1InC, tensorL1_1OutC, scaleLayer1_1])
+                        of_act_bn0_bn1.release(ObjectFifoPort.Consume, 1)
+                        of_act_bn1_1_2.release(ObjectFifoPort.Produce, 1)
 
                         yield_([])
 
@@ -323,7 +323,7 @@ def mobilenetV3Bottleneck2And3(tileRowIndex = 2, tileColIndex = 0, tensorInW = 5
         # instruction stream generation
         activationsInSize32b = (tensorInW * tensorInH * tensorInC) // 4
         # activationsOutSize32b = activationsInSize32b
-        activationsOutSize32b = (tensorInW * tensorInH * tensorL0_3OutC) // 4
+        activationsOutSize32b = (tensorInW * tensorInH * tensorL1_1OutC) // 4
         # totalWeightsSize32b = (tensorL0_1InC* tensorL0_1OutC+3*3*tensorL0_2OutC*1 + 1*1*tensorL0_3InC*tensorL0_3OutC + 1*1*tensorL1_1InC*tensorL1_1OutC + 3*3*tensorL1_2OutC + 1*1*tensorL1_3InC*tensorL1_3OutC) // 4
         totalWeightsSize32b = (tensorL0_1InC* tensorL0_1OutC+ 3*3*tensorL0_2OutC*1 + 1*1*tensorL0_3InC*tensorL0_3OutC + 1*1*tensorL1_1InC*tensorL1_1OutC ) // 4
         activationsInL3_ty = MemRefType.get((activationsInSize32b,), int32_ty)
@@ -347,7 +347,7 @@ def mobilenetV3Bottleneck2And3(tileRowIndex = 2, tileColIndex = 0, tensorInW = 5
                 sizes=[1, 1, 1, activationsInSize32b],
             )
             npu_dma_memcpy_nd(
-                metadata="act_bn0_bn1",
+                metadata="act_bn1_1_2",
                 bd_id=2,
                 mem=outputToL3,
                 sizes=[1, 1, 1, activationsOutSize32b],

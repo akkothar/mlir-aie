@@ -66,7 +66,7 @@ bneck_3_OutC3 = tensorOutC
 
 bneck_2_InC_vec =  math.floor(tensorInC/vectorSize)
 
-bneck_3_OutC3_vec =  math.floor(bneck_2_OutC3/vectorSize)
+bneck_3_OutC3_vec =  math.floor(bneck_3_OutC1/vectorSize)
 
 tmp_outC_vec = math.floor(depthWiseChannels/vectorSize)
 
@@ -244,8 +244,8 @@ def main(opts):
             out = out+out_q
             out = self.bn2_add(out)
 
-            # out = self.bn3_quant_conv1(out)
-            # out = self.bn3_quant_relu1(out)
+            out = self.bn3_quant_conv1(out)
+            out = self.bn3_quant_relu1(out)
             # out = self.bn3_quant_conv2(out)
             # out = self.bn3_quant_relu2(out)
             # out = self.bn3_quant_conv3(out)
