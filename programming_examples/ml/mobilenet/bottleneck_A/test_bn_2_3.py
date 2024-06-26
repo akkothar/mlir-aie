@@ -94,7 +94,7 @@ def main(opts):
     dtype_out = np.dtype("int8")
 
     shape_total_wts = (bneck_2_InC1*bneck_2_OutC1+3*3*bneck_2_OutC2 + bneck_2_OutC2*bneck_2_OutC3 + bneck_3_InC1*bneck_3_OutC1 + 3*3*bneck_3_OutC2 + bneck_3_OutC2*bneck_3_OutC3, 1)
-    shape_total_wts = (bneck_2_InC1*bneck_2_OutC1+3*3*bneck_2_OutC2 + bneck_2_OutC2*bneck_2_OutC3, 1)
+    shape_total_wts = (bneck_2_InC1*bneck_2_OutC1+3*3*bneck_2_OutC2 + bneck_2_OutC2*bneck_2_OutC3 + bneck_3_InC1*bneck_3_OutC1, 1)
     shape_in_act = (bneck_2_InH2, bneck_2_InC_vec, bneck_2_InW2, vectorSize)  #'YCXC8' , 'CYX'
     shape_out = (bneck_2_InH2, bneck_3_OutC3_vec, bneck_2_InW2, vectorSize) # HCWC8
     shape_out_final = (bneck_3_OutC3_vec*vectorSize, bneck_2_InH2, bneck_2_InW2) # CHW
@@ -376,7 +376,7 @@ def main(opts):
     )
 
     total_wts = np.concatenate((bn2_wts1,bn2_wts2, bn2_wts3, bn3_wts1, bn3_wts2, bn3_wts3), axis=None)
-    total_wts = np.concatenate((bn2_wts1,bn2_wts2, bn2_wts3), axis=None)
+    total_wts = np.concatenate((bn2_wts1,bn2_wts2, bn2_wts3, bn3_wts1), axis=None)
     total_wts.tofile(log_folder + "/after_weights_mem_fmt_final.txt", sep=",", format="%d")
     print(total_wts.shape)
     # ------------------------------------------------------
