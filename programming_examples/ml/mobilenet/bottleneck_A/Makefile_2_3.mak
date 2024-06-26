@@ -44,8 +44,16 @@ build/bn3_conv2dk1_fused_relu.o: bn_conv2dk1_relu.cc
 	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DINT8_ACT -DBN3 -c $< -o ${@F}
 #	xchesscc -d ${CHESSCC2_FLAGS} -DSCALAR -DINT8_ACT -c $< -o $@
 
+build/conv2dk3_dw_stride2.o: bn_conv2dk3_dw.cc
+	mkdir -p ${@D}
+	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DREGULAR  -DSCALAR -DSTRIDE2 -c $< -o ${@F}
+#	xchesscc -d ${CHESSCC2_FLAGS} -DSCALAR -DUINT8_ACT -DSTRIDE2 -c $< -o $@
 
-build/combined_bn2_bn3.a: build/conv2dk3_dw_stride1.o build/bn2_conv2dk1_fused_relu.o  build/conv2dk1_skip.o build/bn3_conv2dk1_fused_relu.o
+build/conv2dk1_i8.o: bn_conv2dk1_i8.cc
+	mkdir -p ${@D}
+	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS}  -DSCALAR  -DREGULAR -c $< -o ${@F}
+	
+build/combined_bn2_bn3.a: build/conv2dk3_dw_stride1.o build/bn2_conv2dk1_fused_relu.o  build/conv2dk1_skip.o build/bn3_conv2dk1_fused_relu.o build/conv2dk3_dw_stride2.o
 	mkdir -p ${@D}
 	ar rvs $@ $^ $(word 2,$^) $(word 3,$^) $(word 4,$^) $(word 5,$^)
 # ****************************************************************************************
