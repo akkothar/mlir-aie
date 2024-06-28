@@ -15,20 +15,36 @@ from aie.extras.dialects.ext import *
 from aie.extras.dialects.ext.memref import view as memref_view
 
 def mobilenetV3_bn_4_5_6_7_8(tileColIndex = 0,tensorInW = 56, tensorInH = 56, tensorInC = 40, 
-                    # bn2_depthWiseStride = 2, bn2_depthWiseChannels = 240, bn2_withSkip = False, bn2_tensorOutC = 80, bn2_scaleFactor1 = 8, bn2_scaleFactor2 = 8, bn2_scaleFactor3 = 11,  bn2_scaleFactorAdd = 0,
+
+                       bn2_depthWiseStride = 1, bn2_depthWiseChannels = 72, bn2_withSkip = True, bn2_tensorOutC = 24, bn2_scaleFactor1 = 8, bn2_scaleFactor2 = 8, bn2_scaleFactor3 = 11,  bn2_scaleFactorAdd = 0,
                        bn3_depthWiseStride = 2, bn3_depthWiseChannels = 72, bn3_withSkip = False, bn3_tensorOutC = 40, bn3_scaleFactor1 = 8, bn3_scaleFactor2 = 8, bn3_scaleFactor3 = 11,  bn3_scaleFactorAdd = 0,
-                       bn4_depthWiseStride = 1, bn4_depthWiseChannels = 120, bn4_withSkip = False, bn4_tensorOutC = 40, bn4_scaleFactor1 = 8, bn4_scaleFactor2 = 8, bn4_scaleFactor3 = 11,  bn4_scaleFactorAdd = 0,
+                       bn4_depthWiseStride = 1, bn4_depthWiseChannels = 120, bn4_withSkip = True, bn4_tensorOutC = 40, bn4_scaleFactor1 = 8, bn4_scaleFactor2 = 8, bn4_scaleFactor3 = 11,  bn4_scaleFactorAdd = 0,
                        bn5_depthWiseStride = 1, bn5_depthWiseChannels = 120, bn5_withSkip = True, bn5_tensorOutC = 80, bn5_scaleFactor1 = 8, bn5_scaleFactor2 = 8, bn5_scaleFactor3 = 11,  bn5_scaleFactorAdd = 0,
                        bn6_depthWiseStride = 2, bn6_depthWiseChannels = 240, bn6_withSkip = False, bn6_tensorOutC = 80, bn6_scaleFactor1 = 8, bn6_scaleFactor2 = 8, bn6_scaleFactor3 = 11,  bn6_scaleFactorAdd = 0,
                        bn7_depthWiseStride = 1, bn7_depthWiseChannels = 200, bn7_withSkip = True, bn7_tensorOutC = 80, bn7_scaleFactor1 = 9, bn7_scaleFactor2 = 8, bn7_scaleFactor3 = 11, bn7_scaleFactorAdd = 0,
                        bn8_depthWiseStride = 1, bn8_depthWiseChannels = 184, bn8_withSkip = True, bn8_tensorOutC = 80, bn8_scaleFactor1 = 9, bn8_scaleFactor2 = 8, bn8_scaleFactor3 = 11, bn8_scaleFactorAdd = 0,
                        enableTrace = False, trace_size = 16384, traceSizeInInt32s = 4096):
 
-    tensorL3_1InC = tensorInC
-    tensorL3_1InW = tensorInW
-    tensorL3_1InH = tensorInH
+    tensorL2_1InC = tensorInC
+    tensorL2_1InW = tensorInW
+    tensorL2_1InH = tensorInH
     
-    tensorL3_2InC = bn3_depthWiseChannels 
+    tensorL2_2InC = bn2_depthWiseChannels 
+    tensorL2_2InW = tensorL2_1InW
+    tensorL2_2InH = tensorL2_1InH
+
+    tensorL2_3InC = tensorL2_2InC
+    tensorL2_3InW = tensorL2_2InW // bn2_depthWiseStride
+    tensorL2_3InH = tensorL2_2InH // bn2_depthWiseStride
+    tensorL2_3OutC = bn2_tensorOutC
+
+    # 
+
+    tensorL3_1InC = tensorL2_3OutC
+    tensorL3_1InW = tensorL2_3InW
+    tensorL3_1InH = tensorL2_3InH
+
+    tensorL3_2InC = bn3_depthWiseChannels
     tensorL3_2InW = tensorL3_1InW
     tensorL3_2InH = tensorL3_1InH
 
@@ -128,6 +144,9 @@ def mobilenetV3_bn_4_5_6_7_8(tileColIndex = 0,tensorInW = 56, tensorInH = 56, te
         tensorLayerOut_ty = MemRefType.get((tensorOutW, 1, tensorOutC), int8_ty)
 
         # setup all the weights here
+        bn2_weights_size=1 * 1 * tensorL2_1InC * tensorL2_2InC + 3 * 3 * tensorL2_3InC * 1 + 1 * 1 * tensorL2_3InC * tensorL2_3OutC
+        bn2_weightsAllLayers_ty = MemRefType.get((bn2_weights_size,), int8_ty)
+
         bn3_weights_size=1 * 1 * tensorL3_1InC * tensorL3_2InC + 3 * 3 * tensorL3_3InC * 1 + 1 * 1 * tensorL3_3InC * tensorL3_3OutC
         bn3_weightsAllLayers_ty = MemRefType.get((bn3_weights_size,), int8_ty)
         bn4_weights_size=1 * 1 * tensorL4_1InC * tensorL4_2InC + 3 * 3 * tensorL4_3InC * 1 + 1 * 1 * tensorL4_3InC * tensorL4_3OutC
@@ -141,7 +160,7 @@ def mobilenetV3_bn_4_5_6_7_8(tileColIndex = 0,tensorInW = 56, tensorInH = 56, te
         bn8_weights_size=1 * 1 * tensorL8_1InC * tensorL8_2InC + 3 * 3 * tensorL8_3InC * 1 + 1 * 1 * tensorL8_3InC * tensorL8_3OutC
         bn8_weightsAllLayers_ty = MemRefType.get((bn8_weights_size,), int8_ty)
  
-        memtile_01_wts=bn3_weights_size+bn4_weights_size+bn5_weights_size
+        memtile_01_wts=bn2_weights_size+bn3_weights_size+bn4_weights_size+bn5_weights_size
         memtile_01_wts_ty = MemRefType.get((memtile_01_wts,), int8_ty)
         
         memtile_11_wts=bn6_weights_size+bn7_weights_size+bn8_weights_size
@@ -158,6 +177,7 @@ def mobilenetV3_bn_4_5_6_7_8(tileColIndex = 0,tensorInW = 56, tensorInH = 56, te
         MemTile11 = tile(tileColIndex+1, 1)
 
 
+        ComputeTile04 = tile(tileColIndex, 4) #bn2
         ComputeTile05 = tile(tileColIndex, 5) #bn3
         ComputeTile15 = tile(tileColIndex+1, 5) #bn4
         ComputeTile14 = tile(tileColIndex+1, 4) #bn5
@@ -167,6 +187,7 @@ def mobilenetV3_bn_4_5_6_7_8(tileColIndex = 0,tensorInW = 56, tensorInH = 56, te
 
                 
         # Set up compute tiles
+        rtpComputeTile04 = Buffer(ComputeTile04, [16], T.i32(), "rtp04") #bn2
         rtpComputeTile05 = Buffer(ComputeTile05, [16], T.i32(), "rtp05") #bn3
         rtpComputeTile15 = Buffer(ComputeTile15, [16], T.i32(), "rtp15") #bn4
         rtpComputeTile14 = Buffer(ComputeTile14, [16], T.i32(), "rtp14") #bn5
@@ -177,14 +198,15 @@ def mobilenetV3_bn_4_5_6_7_8(tileColIndex = 0,tensorInW = 56, tensorInH = 56, te
         # AIE-array data movement with object fifos
         
         # Input
-        act_in = object_fifo("act_in", ShimTile00, ComputeTile05, 2, tensorLayerIn_ty)
+        act_in = object_fifo("act_in", ShimTile00, ComputeTile04, 2, tensorLayerIn_ty)
 
         # wts
         wts_OF_01_L3L2 = object_fifo("wts_OF_01_L3L2", ShimTile00, MemTile01, 1, memtile_01_wts_ty)
+        bn2_wts_OF_L3L1 = object_fifo("bn2_wts_OF_L2L1", MemTile01, ComputeTile04, [1,1], bn2_weightsAllLayers_ty)
         bn3_wts_OF_L3L1 = object_fifo("bn3_wts_OF_L2L1", MemTile01, ComputeTile05, [1,1], bn3_weightsAllLayers_ty)
         bn4_wts_OF_L3L1 = object_fifo("bn4_wts_OF_L2L1", MemTile01, ComputeTile15, [1,1], bn4_weightsAllLayers_ty)
         bn5_wts_OF_L3L1 = object_fifo("bn5_wts_OF_L2L1", MemTile01, ComputeTile14, [1,1], bn5_weightsAllLayers_ty)
-        object_fifo_link(wts_OF_01_L3L2, [bn3_wts_OF_L3L1,bn4_wts_OF_L3L1,bn5_wts_OF_L3L1],[],[0,bn3_weights_size,bn3_weights_size+bn4_weights_size])
+        object_fifo_link(wts_OF_01_L3L2, [bn2_wts_OF_L3L1,bn3_wts_OF_L3L1,bn4_wts_OF_L3L1,bn5_wts_OF_L3L1],[],[0,bn2_weights_size,bn2_weights_size+bn3_weights_size,bn2_weights_size+bn3_weights_size+bn4_weights_size])
 
         #  # wts
         wts_OF_11_L3L2 = object_fifo("wts_OF_11_L3L2", ShimTile10, MemTile11, 1, memtile_11_wts_ty)
@@ -192,6 +214,43 @@ def mobilenetV3_bn_4_5_6_7_8(tileColIndex = 0,tensorInW = 56, tensorInH = 56, te
         bn7_wts_OF_L3L1 = object_fifo("bn7_wts_OF_L2L1", MemTile11, ComputeTile13, [1,1], bn7_weightsAllLayers_ty)
         bn8_wts_OF_L3L1 = object_fifo("bn8_wts_OF_L2L1", MemTile11, ComputeTile22, [1,1], bn8_weightsAllLayers_ty)
         object_fifo_link(wts_OF_11_L3L2, [bn6_wts_OF_L3L1,bn7_wts_OF_L3L1,bn8_wts_OF_L3L1],[],[0,bn6_weights_size,bn6_weights_size+bn7_weights_size])
+
+        # # ******************************************************************bn2******************************************************************
+         # temporary types for tensor to enable intial test
+        bn2_tensorLayer1In_ty = MemRefType.get((tensorL2_1InW, 1, tensorL2_1InC), int8_ty)
+        bn2_weightsLayer1_ty = MemRefType.get((1 * 1 * tensorL2_1InC * tensorL2_2InC,), int8_ty)
+        bn2_tensorLayer1Out_ty = MemRefType.get((tensorL2_2InW, 1, tensorL2_2InC), uint8_ty)
+    
+        bn2_tensorLayer2In_ty = bn2_tensorLayer1Out_ty
+        bn2_weightsLayer2_ty = MemRefType.get((3 * 3 * tensorL2_3InC * 1,), int8_ty)
+        bn2_tensorLayer2Out_ty = MemRefType.get((tensorL2_3InW, 1, tensorL2_3InC), uint8_ty)
+
+        bn2_tensorLayer3In_ty = bn2_tensorLayer2Out_ty
+        bn2_weightsLayer3_ty = MemRefType.get((1 * 1 * tensorL2_3InC * tensorL2_3OutC,), int8_ty)
+        bn2_tensorLayer3Out_ty = MemRefType.get((tensorL2_3InW, 1, tensorL2_3OutC),int8_ty)
+        
+        # AIE Core Function declarations
+        bn2_conv2dk1_relu_i8_ui8 = external_func("bn2_conv2dk1_relu_i8_ui8",inputs=[bn2_tensorLayer1In_ty, bn2_weightsLayer1_ty, bn2_tensorLayer1Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        bn2_conv2dk3_dw_stride2_relu_ui8_ui8 = external_func("bn2_conv2dk3_dw_stride2_relu_ui8_ui8",inputs=[bn2_tensorLayer2In_ty,bn2_tensorLayer2In_ty,bn2_tensorLayer2In_ty, bn2_weightsLayer2_ty, bn2_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        bn2_conv2dk3_dw_stride1_relu_ui8_ui8 = external_func("bn2_conv2dk3_dw_stride1_relu_ui8_ui8",inputs=[bn2_tensorLayer2In_ty,bn2_tensorLayer2In_ty,bn2_tensorLayer2In_ty, bn2_weightsLayer2_ty, bn2_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        bn2_conv2dk1_skip_ui8_i8_i8 = external_func("bn2_conv2dk1_skip_ui8_i8_i8",inputs=[bn2_tensorLayer3In_ty, bn2_weightsLayer3_ty, bn2_tensorLayer3Out_ty, bn2_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        bn2_conv2dk1_ui8_i8 = external_func("bn2_conv2dk1_ui8_i8",inputs=[bn2_tensorLayer3In_ty, bn2_weightsLayer3_ty, bn2_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+
+        # Compute tile 6
+        bn2_objectArchiveName = "bn2_combined_con2dk1fusedrelu_conv2dk3dwstride%s_conv2dk1%s.a" % (bn2_depthWiseStride, "skip" if (bn2_withSkip) else "")
+        bn2_tensorLayer1Out_ty = MemRefType.get((tensorL2_2InW, 1, tensorL2_2InC),uint8_ty)
+        bn2_tensorLayer2Out_ty = MemRefType.get((tensorL2_3InW, 1, tensorL2_3InC),uint8_ty)
+        bn2_tensorLayer3Out_ty = MemRefType.get((tensorL2_3InW, 1, tensorL2_3OutC),int8_ty)        
+
+       
+
+        # between compute tiles
+        act_bn2_bn3 = object_fifo("act_bn2_bn3", ComputeTile04, ComputeTile05, 2, bn2_tensorLayer3Out_ty)
+
+        bottleneckACore("bn2", ComputeTile04, act_in, bn2_wts_OF_L3L1, act_bn2_bn3, rtpComputeTile04, bn2_objectArchiveName,
+                         bn2_conv2dk1_relu_i8_ui8, bn2_conv2dk3_dw_stride1_relu_ui8_ui8, bn2_conv2dk3_dw_stride2_relu_ui8_ui8, bn2_conv2dk1_ui8_i8, bn2_conv2dk1_skip_ui8_i8_i8,
+                           bn2_tensorLayer1Out_ty, bn2_tensorLayer2Out_ty, tensorL2_1InW, tensorL2_1InH, tensorL2_1InC,  bn2_depthWiseStride, bn2_depthWiseChannels, tensorL2_3OutC, bn2_withSkip)
+
 
         # # ******************************************************************bn3******************************************************************
          # temporary types for tensor to enable intial test
@@ -224,7 +283,7 @@ def mobilenetV3_bn_4_5_6_7_8(tileColIndex = 0,tensorInW = 56, tensorInH = 56, te
         # # between compute tiles
         act_bn3_bn4 = object_fifo("act_bn3_bn4", ComputeTile05, ComputeTile15, 2, bn3_tensorLayer3Out_ty)
 
-        bottleneckACore("bn3", ComputeTile05, act_in, bn3_wts_OF_L3L1, act_bn3_bn4, rtpComputeTile05, bn3_objectArchiveName,
+        bottleneckACore("bn3", ComputeTile05, act_bn2_bn3, bn3_wts_OF_L3L1, act_bn3_bn4, rtpComputeTile05, bn3_objectArchiveName,
                          bn3_conv2dk1_relu_i8_ui8, bn3_conv2dk3_dw_stride1_relu_ui8_ui8, bn3_conv2dk3_dw_stride2_relu_ui8_ui8, bn3_conv2dk1_ui8_i8, bn3_conv2dk1_skip_ui8_i8_i8,
                            bn3_tensorLayer1Out_ty, bn3_tensorLayer2Out_ty, tensorL3_1InW, tensorL3_1InH, tensorL3_1InC, bn3_depthWiseStride, bn3_depthWiseChannels, tensorL3_3OutC, bn3_withSkip)
 
@@ -405,6 +464,12 @@ def mobilenetV3_bn_4_5_6_7_8(tileColIndex = 0,tensorInW = 56, tensorInH = 56, te
         @FuncOp.from_py_func(activationsInL3_ty, weightsInL3_ty, activationsOutL3_ty)
         def sequence(inputFromL3, weightsFromL3, outputToL3):
 
+            # bn2
+            NpuWriteRTPOp("rtp04", col=tileColIndex, row=4, index=0, value=bn2_scaleFactor1)
+            NpuWriteRTPOp("rtp04", col=tileColIndex, row=4, index=1, value=bn2_scaleFactor2)
+            NpuWriteRTPOp("rtp04", col=tileColIndex, row=4, index=2, value=bn2_scaleFactor3)
+            NpuWriteRTPOp("rtp04", col=tileColIndex, row=4, index=3, value=bn2_scaleFactorAdd)
+
             # bn3
             NpuWriteRTPOp("rtp05", col=tileColIndex, row=5, index=0, value=bn3_scaleFactor1)
             NpuWriteRTPOp("rtp05", col=tileColIndex, row=5, index=1, value=bn3_scaleFactor2)
@@ -468,6 +533,7 @@ def mobilenetV3_bn_4_5_6_7_8(tileColIndex = 0,tensorInW = 56, tensorInH = 56, te
 
 with mlir_mod_ctx() as ctx:
     mobilenetV3_bn_4_5_6_7_8(tileColIndex = 0, tensorInW = 56, tensorInH = 56, tensorInC = 24, 
+                    bn2_depthWiseStride = 1, bn2_depthWiseChannels = 72, bn2_withSkip = True, bn2_tensorOutC = 24, bn2_scaleFactor1 = 8, bn2_scaleFactor2 = 8, bn2_scaleFactor3 = 11,  bn2_scaleFactorAdd = 0,
                     bn3_depthWiseStride = 2, bn3_depthWiseChannels = 72, bn3_withSkip = False, bn3_tensorOutC = 40, bn3_scaleFactor1 = 8, bn3_scaleFactor2 = 8, bn3_scaleFactor3 = 11,  bn3_scaleFactorAdd = 0,
                     bn4_depthWiseStride = 1, bn4_depthWiseChannels = 120, bn4_withSkip = True, bn4_tensorOutC = 40, bn4_scaleFactor1 = 8, bn4_scaleFactor2 = 8, bn4_scaleFactor3 = 11,  bn4_scaleFactorAdd = 0,
                     bn5_depthWiseStride = 1, bn5_depthWiseChannels = 120, bn5_withSkip = True, bn5_tensorOutC = 40, bn5_scaleFactor1 = 8, bn5_scaleFactor2 = 8, bn5_scaleFactor3 = 11,  bn5_scaleFactorAdd = 0,

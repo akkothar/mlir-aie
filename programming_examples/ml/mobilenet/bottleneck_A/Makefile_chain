@@ -10,7 +10,7 @@ include ${srcdir}/../../../makefile-common
 
 VPATH := ${srcdir}/../../../../aie_kernels/aie2
 
-OBJ = build/bn3_combined_con2dk1fusedrelu_conv2dk3dwstride2_conv2dk1.a build/bn4_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a build/bn5_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a build/bn6_combined_con2dk1fusedrelu_conv2dk3dwstride2_conv2dk1.a build/bn7_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a build/bn8_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a build/bn9_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a
+OBJ = build/bn2_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a build/bn3_combined_con2dk1fusedrelu_conv2dk3dwstride2_conv2dk1.a build/bn4_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a build/bn5_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a build/bn6_combined_con2dk1fusedrelu_conv2dk3dwstride2_conv2dk1.a build/bn7_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a build/bn8_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a build/bn9_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a
 
 
 all: build/final_bn_chain.xclbin run_py_bn_chain
@@ -23,6 +23,22 @@ build/aie2_bn_chain.mlir: ${srcdir}/aie2_bn_chain.py
 # 	aiecc.py -v --aie-only-generate-npu --npu-insts-name=$@ $<
 
 # ****************************************************************************************
+# bn2
+build/bn2_conv2dk1_fused_relu.o: bn_conv2dk1_relu.cc
+	mkdir -p ${@D}
+	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DSCALAR -DBN2 -DINT8_ACT -c $< -o ${@F}
+
+build/bn2_conv2dk3_dw_stride1.o: bn_conv2dk3_dw.cc
+	mkdir -p ${@D}
+	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DBN2  -DSCALAR  -DSTRIDE1 -c $< -o ${@F}
+build/bn2_conv2dk1_skip.o: bn_conv2dk1_skip.cc
+	mkdir -p ${@D}
+	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DBN2 -DSCALAR -c $< -o ${@F}
+
+build/bn2_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a: build/bn2_conv2dk1_fused_relu.o build/bn2_conv2dk3_dw_stride1.o build/bn2_conv2dk1_skip.o  
+	mkdir -p ${@D}
+	ar rvs $@ $< $(word 2,$^) $(word 3,$^)
+
 # bn3
 build/bn3_conv2dk1_fused_relu.o: bn_conv2dk1_relu.cc
 	mkdir -p ${@D}
