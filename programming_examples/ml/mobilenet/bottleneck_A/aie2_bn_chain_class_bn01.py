@@ -256,7 +256,7 @@ def mobilenetV3_bn_2_3_4_5_6_7_8_9(tileColIndex = 0,tensorInW = 112, tensorInH =
         # AIE-array data movement with object fifos
         
         # Input
-        act_in = object_fifo("act_in", ShimTile00, ComputeTile03, 2, tensorLayerIn_ty)
+        act_in = object_fifo("act_in", ShimTile00, ComputeTile03, [2, 3], tensorLayerIn_ty)
 
         # wts
         wts_OF_01_L3L2 = object_fifo("wts_OF_01_L3L2", ShimTile00, MemTile01, 1, memtile_01_wts_ty)
@@ -320,7 +320,7 @@ def mobilenetV3_bn_2_3_4_5_6_7_8_9(tileColIndex = 0,tensorInW = 112, tensorInH =
         bn1_tensorLayer1_3Out_ty = MemRefType.get((tensorL1_3InW, 1, tensorL1_3OutC),int8_ty)
 
         # between compute tiles
-        act_bn01_bn2 = object_fifo("act_bn01_bn2", ComputeTile03, ComputeTile04, 2, bn1_tensorLayer1_3Out_ty)
+        act_bn01_bn2 = object_fifo("act_bn01_bn2", ComputeTile03, ComputeTile04, [3, 2], bn1_tensorLayer1_3Out_ty)
 
         bottleneckAFused("bn01", ComputeTile03, act_in, bn0_1_wts_OF_L3L1, act_bn01_bn2, rtpComputeTile03, bn01_objectArchiveName,
                          bn0_conv2dk3_dw_stride1_relu_ui8_ui8, bn0_conv2dk1_skip_ui8_ui8_i8, bn1_conv2dk1_relu_i8_ui8, bn1_conv2dk3_dw_stride2_relu_ui8_ui8, bn1_conv2dk1_ui8_i8,
