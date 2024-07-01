@@ -109,6 +109,11 @@ run_py_2: build/final_bn_2.xclbin build/insts_bn_2.txt build/aie2_bn_2.mlir
 run_py_3: build/final_bn_3.xclbin build/insts_bn_3.txt build/aie2_bn_3.mlir
 	${powershell} python3 ${srcdir}/test_bn_3.py -x build/final_bn_3.xclbin -i build/insts_bn_3.txt -k MLIR_AIE
 
+run_py_4: build/final_bn_4.xclbin build/insts_bn_4.txt build/aie2_bn_4.mlir
+	${powershell} python3 ${srcdir}/test_bn_4.py -x build/final_bn_4.xclbin -i build/insts_bn_4.txt -k MLIR_AIE
+
+run_py_5: build/final_bn_5.xclbin build/insts_bn_5.txt build/aie2_bn_5.mlir
+	${powershell} python3 ${srcdir}/test_bn_5.py -x build/final_bn_5.xclbin -i build/insts_bn_5.txt -k MLIR_AIE
 
 run_py_6: build/final_bn_6.xclbin build/insts_bn_6.txt build/aie2_bn_6.mlir
 	${powershell} python3 ${srcdir}/test_bn_6.py -x build/final_bn_6.xclbin -i build/insts_bn_6.txt -k MLIR_AIE

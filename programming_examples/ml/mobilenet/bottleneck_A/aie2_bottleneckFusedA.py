@@ -74,10 +74,10 @@ class bottleneckAFused:
       
         
         # Intermediate
-        self.of_act_bn0_2_3 = object_fifo(self.bottleneckName+"act_bn0_2_3", self.computeTile, self.computeTile, 1, self.tensorLayer0_2Out_ty)
-        self.of_act_bn0_bn1 = object_fifo(self.bottleneckName+"act_bn0_bn1", self.computeTile, self.computeTile, 1, self.tensorLayer0_3Out_ty)
-        self.of_act_bn1_1_2 = object_fifo(self.bottleneckName+"act_bn1_1_2", self.computeTile, self.computeTile, 3, self.tensorLayer1_1Out_ty)
-        self.of_act_bn1_2_3 = object_fifo(self.bottleneckName+"act_bn1_2_3", self.computeTile, self.computeTile, 1, self.tensorLayer1_2Out_ty)
+        self.of_act_bn0_2_3 = object_fifo(self.bottleneckName+"_"+"act_bn0_2_3", self.computeTile, self.computeTile, 1, self.tensorLayer0_2Out_ty)
+        self.of_act_bn0_bn1 = object_fifo(self.bottleneckName+"_"+"act_bn0_bn1", self.computeTile, self.computeTile, 1, self.tensorLayer0_3Out_ty)
+        self.of_act_bn1_1_2 = object_fifo(self.bottleneckName+"_"+"act_bn1_1_2", self.computeTile, self.computeTile, 3, self.tensorLayer1_1Out_ty)
+        self.of_act_bn1_2_3 = object_fifo(self.bottleneckName+"_"+"act_bn1_2_3", self.computeTile, self.computeTile, 1, self.tensorLayer1_2Out_ty)
         
         
         # Compute tile
