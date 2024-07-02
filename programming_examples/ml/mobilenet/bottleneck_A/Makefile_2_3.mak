@@ -52,7 +52,7 @@ build/conv2dk3_dw_stride2.o: bn_conv2dk3_dw.cc
 build/conv2dk1_i8.o: bn_conv2dk1_i8.cc
 	mkdir -p ${@D}
 	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS}  -DSCALAR  -DREGULAR -c $< -o ${@F}
-	
+
 build/combined_bn2_bn3.a: build/conv2dk3_dw_stride1.o build/bn2_conv2dk1_fused_relu.o  build/conv2dk1_skip.o build/bn3_conv2dk1_fused_relu.o build/conv2dk3_dw_stride2.o
 	mkdir -p ${@D}
 	ar rvs $@ $^ $(word 2,$^) $(word 3,$^) $(word 4,$^) $(word 5,$^)
@@ -63,7 +63,7 @@ build/final_bn_2_3.xclbin: build/aie2_bn_2_3.mlir  $(OBJ)
 		--basic-alloc-scheme \
 		--xclbin-name=${@F} --npu-insts-name=insts.txt ${<F}
 
-run_py_bn_2_3:  build/final_bn_2_3.xclbin build/aie2_bn_2_3.mlir
+run_py_bn_2_3: clean build/final_bn_2_3.xclbin build/aie2_bn_2_3.mlir
 	${powershell} python3 ${srcdir}/test_bn_2_3.py -x build/final_bn_2_3.xclbin -i build/insts.txt -k MLIR_AIE
 
 # clean:

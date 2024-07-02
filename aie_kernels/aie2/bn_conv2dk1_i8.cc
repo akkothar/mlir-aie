@@ -639,7 +639,7 @@ extern "C" {
 // #endif // BN6
 
 #ifdef BN10
-    void bn10_conv2dk1_ui8(uint8_t *input, int8_t *kernels, int8_t *output,
+    void bn10_conv2dk1_ui8_i8(uint8_t *input, int8_t *kernels, int8_t *output,
                       const int32_t input_width, const int32_t input_channels,
                       const int32_t output_channels, const int scale) {
       conv2dk1_ui8_scalar(input, kernels, output, input_width, input_channels,
@@ -648,7 +648,7 @@ extern "C" {
 #endif //BN12
 
 #ifdef BN12
-    void bn12_conv2dk1_ui8(uint8_t *input, int8_t *kernels, int8_t *output,
+    void bn12_conv2dk1_ui8_i8(uint8_t *input, int8_t *kernels, int8_t *output,
                       const int32_t input_width, const int32_t input_channels,
                       const int32_t output_channels, const int scale) {
       conv2dk1_ui8_scalar(input, kernels, output, input_width, input_channels,

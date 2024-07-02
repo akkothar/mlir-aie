@@ -25,7 +25,7 @@ class bottleneckACore:
     def __init__(self, _bottleneckName, _computeTile, _actIn, _weightsIn, _actOut, _rtpsIn,
                     _objectArchive, _f1x1Relu, _f3x3dwStride1Relu, _f3x3dwStride2Relu, _f1x1, _f1x1Skip,
                     _layer1OutType, _layer2OutType,
-                    _tensorInW = 112, _tensorInH = 112, _tensorInC = 16, _depthWiseStride = 2, _depthWiseChannels = 64, _tensorOutC = 24, _withSkip = False):
+                    _tensorInW = 112, _tensorInH = 112, _tensorInC = 16, _depthWiseStride = 2, _depthWiseChannels = 64, _tensorOutC = 24, _withSkip = False,_scaleFactor1 = 8, _scaleFactor2 = 8, _scaleFactor3 = 8,  _scaleFactorAdd = 0, ):
 
         self.bottleneckName = _bottleneckName
         self.computeTile = _computeTile
@@ -63,6 +63,11 @@ class bottleneckACore:
 
         self.tensorL3InC = self.tensorL2InC
         self.tensorL3OutC = self.tensorOutC
+
+        self.scaleFactor1=_scaleFactor1
+        self.scaleFactor2=_scaleFactor2
+        self.scaleFactor3=_scaleFactor3
+        self.scaleFactorAdd=_scaleFactorAdd
     
         # Intermediate
         self.of_act_1_2 = object_fifo(self.bottleneckName+"_act_1_2", self.computeTile, self.computeTile, 3, self.layer1OutType)

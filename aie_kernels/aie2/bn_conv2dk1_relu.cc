@@ -872,79 +872,79 @@ void conv2dk1_i8_ui8_partial_width_get(int8_t *input, int8_t *kernels, uint8_t *
 #endif
 
 
-#ifdef BN10
+// #ifdef BN10
 
-    #ifdef INT8_ACT
+//     #ifdef INT8_ACT
 
-    void bn10_conv2dk1_i8(int8_t *input, int8_t *kernels, uint8_t *output,
-                    const int32_t input_width, const int32_t input_channels,
-                    const int32_t output_channels, const int scale) {
-      conv2dk1_i8_scalar(input, kernels, output, input_width, input_channels,
-                        output_channels, scale);
-    }
+//     void bn10_conv2dk1_i8(int8_t *input, int8_t *kernels, uint8_t *output,
+//                     const int32_t input_width, const int32_t input_channels,
+//                     const int32_t output_channels, const int scale) {
+//       conv2dk1_i8_scalar(input, kernels, output, input_width, input_channels,
+//                         output_channels, scale);
+//     }
 
-    #else // UINT8_ACT
+//     #else // UINT8_ACT
 
-    void bn10_conv2dk1_ui8(uint8_t *input, int8_t *kernels, uint8_t *output,
-                      const int32_t input_width, const int32_t input_channels,
-                      const int32_t output_channels, const int scale) {
-      conv2dk1_ui8_scalar(input, kernels, output, input_width, input_channels,
-                          output_channels, scale);
-    }
+//     void bn10_conv2dk1_ui8(uint8_t *input, int8_t *kernels, uint8_t *output,
+//                       const int32_t input_width, const int32_t input_channels,
+//                       const int32_t output_channels, const int scale) {
+//       conv2dk1_ui8_scalar(input, kernels, output, input_width, input_channels,
+//                           output_channels, scale);
+//     }
 
-    #endif // UINT8_ACT
+//     #endif // UINT8_ACT
 
-    #endif // Vector
-#ifdef BN12
+//     #endif // Vector
+// #ifdef BN12
 
-    #ifdef INT8_ACT
+//     #ifdef INT8_ACT
 
-    void bn12_conv2dk1_i8(int8_t *input, int8_t *kernels, uint8_t *output,
-                    const int32_t input_width, const int32_t input_channels,
-                    const int32_t output_channels, const int scale) {
-      conv2dk1_i8_scalar(input, kernels, output, input_width, input_channels,
-                        output_channels, scale);
-    }
+//     void bn12_conv2dk1_i8(int8_t *input, int8_t *kernels, uint8_t *output,
+//                     const int32_t input_width, const int32_t input_channels,
+//                     const int32_t output_channels, const int scale) {
+//       conv2dk1_i8_scalar(input, kernels, output, input_width, input_channels,
+//                         output_channels, scale);
+//     }
 
-    #else // UINT8_ACT
+//     #else // UINT8_ACT
 
-    void bn12_conv2dk1_ui8(uint8_t *input, int8_t *kernels, uint8_t *output,
-                      const int32_t input_width, const int32_t input_channels,
-                      const int32_t output_channels, const int scale) {
-      conv2dk1_ui8_scalar(input, kernels, output, input_width, input_channels,
-                          output_channels, scale);
-    }
+//     void bn12_conv2dk1_ui8(uint8_t *input, int8_t *kernels, uint8_t *output,
+//                       const int32_t input_width, const int32_t input_channels,
+//                       const int32_t output_channels, const int scale) {
+//       conv2dk1_ui8_scalar(input, kernels, output, input_width, input_channels,
+//                           output_channels, scale);
+//     }
 
-    #endif // UINT8_ACT
+//     #endif // UINT8_ACT
 
-#endif // Vector
+// #endif // Vector
   
   
-#ifdef BN11
+// #ifdef BN11
 
-      #ifdef INT8_ACT
+//       #ifdef INT8_ACT
 
-      void bn11_conv2dk1_i8(int8_t *input, int8_t *kernels, uint8_t *output,
-                      const int32_t input_width, const int32_t input_channels,
-                      const int32_t output_channels, const int scale) {
-        conv2dk1_i8_scalar(input, kernels, output, input_width, input_channels,
-                          output_channels, scale);
-      }
+//       void bn11_conv2dk1_i8(int8_t *input, int8_t *kernels, uint8_t *output,
+//                       const int32_t input_width, const int32_t input_channels,
+//                       const int32_t output_channels, const int scale) {
+//         conv2dk1_i8_scalar(input, kernels, output, input_width, input_channels,
+//                           output_channels, scale);
+//       }
 
-      #else // UINT8_ACT
+//       #else // UINT8_ACT
 
-      void bn11_conv2dk1_ui8(uint8_t *input, int8_t *kernels, uint8_t *output,
-                        const int32_t input_width, const int32_t input_channels,
-                        const int32_t output_channels, const int scale) {
-        conv2dk1_ui8_scalar(input, kernels, output, input_width, input_channels,
-                            output_channels, scale);
-      }
+//       void bn11_conv2dk1_ui8(uint8_t *input, int8_t *kernels, uint8_t *output,
+//                         const int32_t input_width, const int32_t input_channels,
+//                         const int32_t output_channels, const int scale) {
+//         conv2dk1_ui8_scalar(input, kernels, output, input_width, input_channels,
+//                             output_channels, scale);
+//       }
 
-      #endif // UINT8_ACT
+//       #endif // UINT8_ACT
 
 
 
-#endif
+// #endif
  #ifdef BN1
 void bn1_conv2dk1_relu_i8_ui8(int8_t *input, int8_t *kernels, uint8_t *output,
                  const int32_t input_width, const int32_t input_channels,
@@ -1041,6 +1041,42 @@ void bn8_conv2dk1_relu_i8_ui8(int8_t *input, int8_t *kernels, uint8_t *output,
 
  #ifdef BN9
 void bn9_conv2dk1_relu_i8_ui8(int8_t *input, int8_t *kernels, uint8_t *output,
+                 const int32_t input_width, const int32_t input_channels,
+                 const int32_t output_channels, const int scale) {
+  
+  conv2dk1_i8_scalar(input, kernels, output, input_width, input_channels,
+                     output_channels, scale);
+
+                 }
+
+#endif
+
+ #ifdef BN10
+void bn10_conv2dk1_relu_i8_ui8(int8_t *input, int8_t *kernels, uint8_t *output,
+                 const int32_t input_width, const int32_t input_channels,
+                 const int32_t output_channels, const int scale) {
+  
+  conv2dk1_i8_scalar(input, kernels, output, input_width, input_channels,
+                     output_channels, scale);
+
+                 }
+
+#endif
+
+ #ifdef BN11
+void bn11_conv2dk1_relu_i8_ui8(int8_t *input, int8_t *kernels, uint8_t *output,
+                 const int32_t input_width, const int32_t input_channels,
+                 const int32_t output_channels, const int scale) {
+  
+  conv2dk1_i8_scalar(input, kernels, output, input_width, input_channels,
+                     output_channels, scale);
+
+                 }
+
+#endif
+
+ #ifdef BN12
+void bn12_conv2dk1_relu_i8_ui8(int8_t *input, int8_t *kernels, uint8_t *output,
                  const int32_t input_width, const int32_t input_channels,
                  const int32_t output_channels, const int scale) {
   

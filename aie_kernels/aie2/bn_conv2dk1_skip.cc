@@ -424,7 +424,7 @@ void conv2dk1_skip_ui8_i8_i8_scalar_cascade_get(
 }
 #endif
 
-#if defined (REGULAR) || (BN0) || (BN2) || (BN4) || (BN5) || (BN7) || (BN8) || (BN9)
+#if defined (REGULAR) || (BN0) || (BN2) || (BN4) || (BN5) || (BN7) || (BN8) || (BN9)  || (BN11)
 #ifdef SCALAR
 #ifdef UNSIGNED_SKIP
 void conv2dk1_skip_ui8_ui8_i8_scalar(
@@ -822,6 +822,39 @@ void conv2dk1_skip_ui8_i8_i8_get(uint8_t *input0,int8_t *kernels,
 
   #endif // Vector
 #endif // BN8
+
+#ifdef BN11
+  #ifdef SCALAR
+
+    #ifdef UNSIGNED_SKIP
+
+    void bn11_conv2dk1_skip_ui8_ui8_i8(uint8_t *input0,int8_t *kernels,
+                          int8_t *output, uint8_t *skip,
+                          const int32_t input_width, const int32_t input_channels,
+                          const int32_t output_channels, const int scale,
+                          const int skip_scale) {
+      conv2dk1_skip_ui8_ui8_i8_scalar(input0,  kernels, output, skip, input_width,
+                              input_channels, output_channels, scale, skip_scale);
+    }
+
+    #else
+
+    void bn11_conv2dk1_skip_ui8_i8_i8(uint8_t *input0,int8_t *kernels,
+                          int8_t *output, int8_t *skip,
+                          const int32_t input_width, const int32_t input_channels,
+                          const int32_t output_channels, const int scale,
+                          const int skip_scale) {
+      conv2dk1_skip_ui8_i8_i8_scalar(input0,  kernels, output, skip, input_width,
+                              input_channels, output_channels, scale, skip_scale);
+    }
+
+    #endif // UNSIGNED_SKIP
+
+  #else // Vector
+
+
+  #endif // Vector
+#endif // BN9
 
 #ifdef BN9
   #ifdef SCALAR
