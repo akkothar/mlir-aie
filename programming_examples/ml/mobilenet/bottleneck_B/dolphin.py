@@ -66,4 +66,3 @@ def print_three_dolphins():
     for line in dolphin:
         print(line * 3)
         
-print_three_dolphins()

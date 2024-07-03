@@ -268,7 +268,7 @@ def mobilenetBottleneckB():
             # AIE Core Function declarations
             # ************************ bneck10 ************************
             bn10_conv2dk1_fused_relu = external_func(
-                "bn10_conv2dk1_i8",
+                "bn10_conv2dk1_relu_i8_ui8",
                 inputs=[
                     ty_bneck_10_layer1_in,
                     ty_bneck_10_layer1_wts,
@@ -280,7 +280,7 @@ def mobilenetBottleneckB():
                 ],
             )
             bn10_conv2dk3_dw = external_func(
-                "bn10_conv2dk3_ui8",
+                "bn10_conv2dk3_dw_stride1_relu_ui8_ui8",
                 inputs=[
                     ty_bneck_10_layer2_in,
                     ty_bneck_10_layer2_in,
@@ -298,7 +298,7 @@ def mobilenetBottleneckB():
                 ],
             )
             bn10_conv2dk1_ui8 = external_func(
-                "bn10_conv2dk1_ui8",
+                "bn10_conv2dk1_ui8_i8",
                 inputs=[
                     ty_bneck_10_layer3_in,
                     ty_bneck_10_layer3_wts,
@@ -311,7 +311,7 @@ def mobilenetBottleneckB():
             )
             # ************************ bneck11 ************************
             bn11_conv2dk1_fused_relu = external_func(
-                "bn11_conv2dk1_i8",
+                "bn11_conv2dk1_relu_i8_ui8",
                 inputs=[
                     ty_bneck_11_layer1_in,
                     ty_bneck_11_layer1_wts,
@@ -323,7 +323,7 @@ def mobilenetBottleneckB():
                 ],
             )
             bn11_conv2dk3_dw = external_func(
-                "bn11_conv2dk3_ui8",
+                "bn11_conv2dk3_dw_stride1_relu_ui8_ui8",
                 inputs=[
                     ty_bneck_11_layer2_in,
                     ty_bneck_11_layer2_in,
@@ -341,7 +341,7 @@ def mobilenetBottleneckB():
                 ],
             )
             bn11_conv2dk1_skip = external_func(
-                "conv2dk1_skip_ui8_i8_i8",
+                "bn11_conv2dk1_skip_ui8_i8_i8",
                 inputs=[
                     ty_bneck_11_layer3_in,
                     ty_bneck_11_layer3_wts,
@@ -357,7 +357,7 @@ def mobilenetBottleneckB():
 
              # ************************ bneck12 ************************
             bn12_conv2dk1_fused_relu = external_func(
-                "bn12_conv2dk1_i8",
+                "bn12_conv2dk1_relu_i8_ui8",
                 inputs=[
                     ty_bneck_12_layer1_in,
                     ty_bneck_12_layer1_wts,
@@ -369,7 +369,7 @@ def mobilenetBottleneckB():
                 ],
             )
             bn12_conv2dk3_dw = external_func(
-                "bn12_conv2dk3_ui8",
+                "bn12_conv2dk3_dw_stride2_relu_ui8_ui8",
                 inputs=[
                     ty_bneck_12_layer2_in,
                     ty_bneck_12_layer2_in,
@@ -387,7 +387,7 @@ def mobilenetBottleneckB():
                 ],
             )
             bn12_conv2dk1_ui8 = external_func(
-                "bn12_conv2dk1_ui8",
+                "bn12_conv2dk1_ui8_i8",
                 inputs=[
                     ty_bneck_12_layer3_in,
                     ty_bneck_12_layer3_wts,
@@ -402,7 +402,7 @@ def mobilenetBottleneckB():
             # Tile declarations
             ShimTile00 = tile(0, 0)
             ShimTile10 = tile(1, 0)
-            ShimTile20 = tile(2, 0)
+
 
             MemTile01 = tile(0, 1)
             MemTile11 = tile(1, 1)
@@ -453,7 +453,7 @@ def mobilenetBottleneckB():
                 1,
                 ty_bneck_10_layer3_wts,
             )
-            object_fifo_link(OF_bneck_10_wts_L3L2, [OF_bneck_10_wts_memtile_layer1, OF_bneck_10_wts_memtile_layer2, OF_bneck_10_wts_memtile_layer3])
+            object_fifo_link(OF_bneck_10_wts_L3L2, [OF_bneck_10_wts_memtile_layer1, OF_bneck_10_wts_memtile_layer2, OF_bneck_10_wts_memtile_layer3],[],[0,bneck_10_InC1 * bneck_10_OutC1,bneck_10_InC1 * bneck_10_OutC1+3 * 3 * bneck_10_OutC2 * 1])
 
             # Output
             OF_bneck_10_act_layer1_layer2 = object_fifo("OF_bneck_10_act_layer1_layer2", ComputeTile02, [ComputeTile03], 4,ty_bneck_10_layer2_in,via_DMA=True)
@@ -489,7 +489,7 @@ def mobilenetBottleneckB():
                 1,
                 ty_bneck_11_layer3_wts,
             )
-            object_fifo_link(OF_bneck_11_wts_L3L2, [OF_bneck_11_wts_memtile_layer1, OF_bneck_11_wts_memtile_layer2, OF_bneck_11_wts_memtile_layer3])
+            object_fifo_link(OF_bneck_11_wts_L3L2, [OF_bneck_11_wts_memtile_layer1, OF_bneck_11_wts_memtile_layer2, OF_bneck_11_wts_memtile_layer3],[],[0,bneck_10_OutC3 * bneck_11_OutC1,bneck_10_OutC3 * bneck_11_OutC1+3 * 3 * bneck_11_OutC2 * 1])
 
             
             # OF_bneck_11_layer3_final = object_fifo("OF_bneck_11_layer3_final", ComputeTile14, [MemTile11], 2, ty_bneck_11_layer3_out)
@@ -504,7 +504,7 @@ def mobilenetBottleneckB():
 
             # # wts
             OF_bneck_12_wts_L3L2 = object_fifo(
-                "OF_bneck_12_wts_L3L2", ShimTile20, MemTile21, 1, ty_bneck_12_all_wts
+                "OF_bneck_12_wts_L3L2", ShimTile10, MemTile21, 1, ty_bneck_12_all_wts
             )
        
             OF_bneck_12_wts_memtile_layer1 = object_fifo(
@@ -524,11 +524,11 @@ def mobilenetBottleneckB():
                 1,
                 ty_bneck_12_layer3_wts,
             )
-            object_fifo_link(OF_bneck_12_wts_L3L2, [OF_bneck_12_wts_memtile_layer1, OF_bneck_12_wts_memtile_layer2, OF_bneck_12_wts_memtile_layer3])
+            object_fifo_link(OF_bneck_12_wts_L3L2, [OF_bneck_12_wts_memtile_layer1, OF_bneck_12_wts_memtile_layer2, OF_bneck_12_wts_memtile_layer3],[],[0,bneck_11_OutC3 * bneck_12_OutC1,bneck_11_OutC3 * bneck_12_OutC1+3 * 3 * bneck_12_OutC2 * 1])
 
             
             OF_bneck_12_layer3_final = object_fifo("OF_bneck_12_layer3_final", ComputeTile22, [MemTile21], 2, ty_bneck_12_layer3_out)
-            OF_outOFL2L3 = object_fifo("outOFL2L3", MemTile21, [ShimTile20], 2, ty_bneck_12_layer3_out)
+            OF_outOFL2L3 = object_fifo("outOFL2L3", MemTile21, [ShimTile10], 2, ty_bneck_12_layer3_out)
             object_fifo_link(OF_bneck_12_layer3_final, OF_outOFL2L3)
             # Set up compute tiles
 
@@ -583,7 +583,7 @@ def mobilenetBottleneckB():
             # # # Compute tile 3
             @core(ComputeTile03, "bn10_conv2dk3_dw.o")
             def core_body():
-                scale = 8
+                scale = 7
                 for _ in for_(sys.maxsize):
 
                     # acquire weights and rtps once
@@ -841,7 +841,7 @@ def mobilenetBottleneckB():
                     yield_([])
 
             # # Compute tile 4
-            @core(ComputeTile14, "bn_conv2dk1_skip.o")
+            @core(ComputeTile14, "bn11_conv2dk1_skip.o")
             def core_body():
 
                 for _ in for_(0xFFFFFFFF):
@@ -1055,19 +1055,19 @@ def mobilenetBottleneckB():
 
             @FuncOp.from_py_func(activationsInL3_ty, weightsInL3_ty, activationsOutL3_ty)
             def sequence(inputFromL3, weightsFromL3, outputToL3):
-                NpuWriteRTPOp("rtp02", col=0, row=2, index=0, value=9)
-                NpuWriteRTPOp("rtp03", col=0, row=3, index=0, value=8)
-                NpuWriteRTPOp("rtp04", col=0, row=4, index=0, value=12)
+                NpuWriteRTPOp("rtp02", col=0, row=2, index=0, value=10)
+                NpuWriteRTPOp("rtp03", col=0, row=3, index=0, value=7)
+                NpuWriteRTPOp("rtp04", col=0, row=4, index=0, value=9)
 
 
                 NpuWriteRTPOp("rtp05", col=0, row=5, index=0, value=9)
                 NpuWriteRTPOp("rtp15", col=1, row=5, index=0, value=8)
                 NpuWriteRTPOp("rtp14", col=1, row=4, index=0, value=12)
-                NpuWriteRTPOp("rtp14", col=1, row=4, index=1, value=0)
+                NpuWriteRTPOp("rtp14", col=1, row=4, index=1, value=1)
 
-                NpuWriteRTPOp("rtp13", col=1, row=3, index=0, value=9)
+                NpuWriteRTPOp("rtp13", col=1, row=3, index=0, value=8)
                 NpuWriteRTPOp("rtp12", col=1, row=2, index=0, value=8)
-                NpuWriteRTPOp("rtp22", col=2, row=2, index=0, value=12)
+                NpuWriteRTPOp("rtp22", col=2, row=2, index=0, value=9)
                 
                 npu_dma_memcpy_nd(
                     metadata="inOF_act_L3L2",
@@ -1101,7 +1101,7 @@ def mobilenetBottleneckB():
                     offsets=[0, 0, 0, bn12_Offset_32b],
                     sizes=[1, 1, 1, bn12_totalWeightsSize32b],
                 )
-                npu_sync(column=2, row=0, direction=0, channel=0)
+                npu_sync(column=1, row=0, direction=0, channel=0)
 
     res = ctx.module.operation.verify()
     if res == True:

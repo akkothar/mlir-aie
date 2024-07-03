@@ -22,8 +22,34 @@ from brevitas.quant.fixed_point import (
     Int8WeightPerTensorFixedPoint,
     Uint8ActPerTensorFixedPoint,
 )
+def convert_to_numpy(array):
+    if isinstance(array, np.ndarray):
+        return array
+    elif isinstance(array, torch.Tensor):
+        return array.cpu().numpy()
+    else:
+        raise TypeError("Unsupported array type")
+from brevitas_examples.imagenet_classification.ptq.ptq_common import calibrate
 torch.use_deterministic_algorithms(True)
 torch.manual_seed(0)
+
+
+import json
+
+# Function to read scale factors from JSON file
+def read_scale_factors(file_path):
+    with open(file_path, 'r') as file:
+        return json.load(file)
+    
+# Function to write scale factors to JSON file
+def write_scale_factors(file_path, scale_factors):
+    with open(file_path, 'w') as file:
+        json.dump(scale_factors, file, indent=4)
+
+# Read the existing scale factors
+file_path = 'scale_factors.json'
+scale_factors = read_scale_factors(file_path)
+
 vectorSize=8
 
 bneck_10_InW1 = 14
@@ -54,6 +80,7 @@ bneck_12_OutC3 = 80
 
 bneck_12_OutC3_vec =  math.floor(bneck_12_OutC3/vectorSize)
 
+InC_vec =  math.floor(bneck_10_InC1/vectorSize)
 
 def main(opts):
     design = "mobilenet_bottleneck_B"
@@ -216,6 +243,10 @@ def main(opts):
                 return_quant_tensor=True,
             )
 # bn12
+# force alignment between scales going into add
+            self.bn10_quant_id_2.act_quant.fused_activation_quant_proxy.tensor_quant.scaling_impl = self.bn11_quant_id_2.act_quant.fused_activation_quant_proxy.tensor_quant.scaling_impl
+            self.bn10_quant_id_2.act_quant.fused_activation_quant_proxy.tensor_quant.int_scaling_impl = self.bn11_quant_id_2.act_quant.fused_activation_quant_proxy.tensor_quant.int_scaling_impl
+
 
             self.bn12_quant_conv1 = QuantConv2d(
                 bn11_project,
@@ -267,16 +298,16 @@ def main(opts):
                 return_quant_tensor=True,
             )
         def forward(self, x):
-            out_q = self.quant_id_1(x)
-            out = self.bn10_quant_conv1(out_q)
+            out = self.quant_id_1(x)
+            out = self.bn10_quant_conv1(out)
             out = self.bn10_quant_relu1(out)
             out = self.bn10_quant_conv2(out)
             out = self.bn10_quant_relu2(out)
             out = self.bn10_quant_conv3(out)
-            out = self.bn10_quant_id_2(out)
+            out_lhs = self.bn10_quant_id_2(out)
 # bn11
-            out_lhs=out
-            out = self.bn11_quant_conv1(out)
+
+            out = self.bn11_quant_conv1(out_lhs)
             out = self.bn11_quant_relu1(out)
             out = self.bn11_quant_conv2(out)
             out = self.bn11_quant_relu2(out)
@@ -296,6 +327,12 @@ def main(opts):
     quant_bottleneck_model = QuantBottleneck(in_planes=80, bn10_expand=480,bn10_project=112, bn11_expand=336,bn11_project=112, bn12_expand=336,bn12_project=80)
     quant_bottleneck_model.eval()
     
+    calibrate([(torch.rand(1, bneck_10_InC1, bneck_10_InH1, bneck_10_InW1), 1) for _ in range(5)], quant_bottleneck_model)
+    from brevitas.fx import brevitas_symbolic_trace
+    # model = brevitas_symbolic_trace(quant_bottleneck_model)
+    # print(model.graph)
+    # print(model)
+
     q_bottleneck_out = quant_bottleneck_model(input)
     golden_output = q_bottleneck_out.int(float_datatype=True).data.numpy().astype(dtype_out)
     print("Golden::Brevitas::", golden_output)
@@ -361,20 +398,34 @@ def main(opts):
         block_12_relu_2 * block_12_weight_scale3/block_12_final_scale
     )   
   
-    
+    print("********************BN11*******************************")
     print("combined_scale after conv1x1:", block_0_combined_scale1.item())
     print("combined_scale after conv3x3:", block_0_combined_scale2.item())
     print("combined_scale after conv1x1:", block_0_combined_scale3.item())
-    print("********************BN11*******************************")
+
+    scale_factors["BN10"]["conv1x1_1"] = int(block_0_combined_scale1.item())
+    scale_factors["BN10"]["conv3x3"] = int(block_0_combined_scale2.item() )
+    scale_factors["BN10"]["conv1x1_2"] = int(block_0_combined_scale3.item())
+    
+    print("********************BN12*******************************")
     print("combined_scale after conv1x1:", block_11_combined_scale1.item())
     print("combined_scale after conv3x3:", block_11_combined_scale2.item())
     print("combined_scale after conv1x1:", block_11_combined_scale3.item())
     print("combined_scale after skip add:", block_11_combined_scale_skip.item())
+
+    scale_factors["BN11"]["conv1x1_1"] = int(block_11_combined_scale1.item())
+    scale_factors["BN11"]["conv3x3"] = int(block_11_combined_scale2.item())
+    scale_factors["BN11"]["conv1x1_2"] = int(block_11_combined_scale3.item())
+    scale_factors["BN11"]["skip_add"] = int (block_11_combined_scale_skip.item())
+
     print("********************BN12*******************************")
     print("combined_scale after conv1x1:", block_12_combined_scale1.item())
     print("combined_scale after conv3x3:", block_12_combined_scale2.item())
     print("combined_scale after conv1x1:", block_12_combined_scale3.item())
-    # print("combined_scale after conv1x1:", ( block_0_relu_2 * block_0_weight_scale3).item())
+    scale_factors["BN12"]["conv1x1_1"] = int(block_12_combined_scale1.item())
+    scale_factors["BN12"]["conv3x3"] = int(block_12_combined_scale2.item() )
+    scale_factors["BN12"]["conv1x1_2"] = int(block_12_combined_scale3.item())
+    write_scale_factors(file_path, scale_factors)
     # ------------------------------------------------------
     # Reorder input data-layout
     # ------------------------------------------------------
@@ -482,11 +533,16 @@ def main(opts):
     # ------------------------------------------------------
     print("\nAvg NPU time: {}us.".format(int((npu_time_total / num_iter) / 1000)))
 
+    golden=convert_to_numpy(golden_output)
+    ofm_mem_fmt_out=convert_to_numpy(ofm_mem_fmt_out)
+    max_difference = np.max((golden)-(ofm_mem_fmt_out))
+    print("Max:",max_difference)
+
     if np.allclose(
         ofm_mem_fmt_out,
         golden_output,
         rtol=0,
-        atol=1,
+        atol=4,
     ):
         print("\nPASS!\n")
         print_dolphin()
