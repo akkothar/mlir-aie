@@ -22,6 +22,22 @@ from brevitas.quant.fixed_point import (
     Int8WeightPerTensorFixedPoint,
     Uint8ActPerTensorFixedPoint,
 )
+import json
+
+# Function to read scale factors from JSON file
+def read_scale_factors(file_path):
+    with open(file_path, 'r') as file:
+        return json.load(file)
+    
+# Function to write scale factors to JSON file
+def write_scale_factors(file_path, scale_factors):
+    with open(file_path, 'w') as file:
+        json.dump(scale_factors, file, indent=4)
+
+# Read the existing scale factors
+file_path = 'scale_factors.json'
+scale_factors = read_scale_factors(file_path)
+
 torch.use_deterministic_algorithms(True)
 torch.manual_seed(0)
 vectorSize=8
@@ -324,12 +340,22 @@ def main(opts):
     print("combined_scale after conv3x3:", block_13_combined_scale2.item())
     print("combined_scale after conv1x1:", block_13_combined_scale3.item())
     print("combined_scale after skip add:", block_13_combined_scale_skip.item())
+    scale_factors["BN13"]["conv1x1_1"] = int(block_13_combined_scale1.item())
+    scale_factors["BN13"]["conv3x3"] = int(block_13_combined_scale2.item())
+    scale_factors["BN13"]["conv1x1_2"] = int(block_13_combined_scale3.item())
+    scale_factors["BN13"]["skip_add"] = int(block_13_combined_scale_skip.item())
+
     print("********************BN14*******************************")
     print("combined_scale after conv1x1:", block_14_combined_scale1.item())
     print("combined_scale after conv3x3:", block_14_combined_scale2.item())
     print("combined_scale after conv1x1:", block_14_combined_scale3.item())
     print("combined_scale after skip add:", block_14_combined_scale_skip.item())
+    scale_factors["BN14"]["conv1x1_1"] = int(block_14_combined_scale1.item())
+    scale_factors["BN14"]["conv3x3"] = int(block_14_combined_scale2.item())
+    scale_factors["BN14"]["conv1x1_2"] = int(block_14_combined_scale3.item())
+    scale_factors["BN14"]["skip_add"] = int(block_14_combined_scale_skip.item())
 
+    write_scale_factors(file_path, scale_factors)
     # print("combined_scale after conv1x1:", ( block_0_relu_2 * block_0_weight_scale3).item())
     # ------------------------------------------------------
     # Reorder input data-layout

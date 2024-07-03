@@ -17,6 +17,7 @@ pythonSource=aie2_bn13_layer2_with_output_split
 testSource=test_layer2
 
 pythonSource=aie2_bn13bn14
+pythonSource=aie2_bottleneckC
 testSource=test
 
 OBJ = build/bn13_1_conv2dk1_put.o build/bn13_1_conv2dk1_get.o build/bn13_conv2dk3_dw.o build/bn13_conv2dk1_put.o build/bn13_conv2dk1_skip_get.o build/bn14_1_conv2dk1_put.o build/bn14_1_conv2dk1_get.o build/bn14_conv2dk3_dw.o build/bn14_conv2dk1_put.o build/bn14_conv2dk1_skip_get.o 
@@ -78,10 +79,16 @@ build/final.xclbin: build/${mlirFileName}.mlir $(OBJ)
 		--basic-alloc-scheme \
 		--xclbin-name=${@F} --npu-insts-name=insts.txt ${<F}
 
+
+# clean:
+# 	rm -rf build *.elf* *.lst *.bif ${mlirFileName}.mlir.prj log .xclbin sim \
+# 		chess* *.o insts.txt \
+# 		*.log aie_partition.json *.bin BOOT.BIN _x test.exe
 clean:
-	rm -rf build *.elf* *.lst *.bif ${mlirFileName}.mlir.prj log .xclbin sim \
-		chess* *.o insts.txt \
-		*.log aie_partition.json *.bin BOOT.BIN _x test.exe
+	rm -rf build/*.elf* build/*.lst build/*.bif build/*.mlir.prj build/*.mlir log build/.xclbin build/sim \
+		build/insts.txt \
+		build/*.log aie_partition.json build/*.bin build/BOOT.BIN _x build/test.exe
+
 
 run_py: 
 	${powershell} python3 ${srcdir}/${testSource}.py -x build/final.xclbin -i build/insts.txt -k MLIR_AIE
