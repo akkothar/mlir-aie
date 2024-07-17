@@ -12,6 +12,14 @@ from aie.dialects.aiex import *
 from aie.dialects.scf import *
 from aie.extras.dialects.ext import memref, arith
 from aie.extras.context import mlir_mod_ctx
+import json
+def read_scale_factors(file_path):
+    with open(file_path, 'r') as file:
+        return json.load(file)
+
+# Read the existing scale factors
+file_path = 'scale_factors.json'
+scale_factors = read_scale_factors(file_path)
 
 bneck_10_InW1 = 14
 bneck_10_InH1 = 14
@@ -38,7 +46,9 @@ trace_size = 16384
 traceSizeInInt32s = trace_size // 4
 
 
-def mobilenetBottleneckB():
+def mobilenetBottleneckB(bn10_scaleFactor1=10,bn10_scaleFactor2=7,bn10_scaleFactor3=9,
+                           bn11_scaleFactor1=9,bn11_scaleFactor2=8,bn11_scaleFactor3=12,bn11_scaleFactorAdd=1,
+                           bn12_scaleFactor1=8,bn12_scaleFactor2=8,bn12_scaleFactor3=9):
     with mlir_mod_ctx() as ctx:
 
         @device(AIEDevice.npu1_2col)
@@ -192,7 +202,7 @@ def mobilenetBottleneckB():
             # AIE Core Function declarations
             # ************************ bneck10 ************************
             bn10_conv2dk1_fused_relu = external_func(
-                "bn10_conv2dk1_i8",
+                "bn10_conv2dk1_relu_i8_ui8",
                 inputs=[
                     ty_bneck_10_layer1_in,
                     ty_bneck_10_layer1_wts,
@@ -204,7 +214,7 @@ def mobilenetBottleneckB():
                 ],
             )
             bn10_conv2dk3_dw = external_func(
-                "bn10_conv2dk3_ui8",
+                "bn10_conv2dk3_dw_stride1_relu_ui8_ui8",
                 inputs=[
                     ty_bneck_10_layer2_in,
                     ty_bneck_10_layer2_in,
@@ -222,7 +232,7 @@ def mobilenetBottleneckB():
                 ],
             )
             bn10_conv2dk1_ui8 = external_func(
-                "bn10_conv2dk1_ui8",
+                "bn10_conv2dk1_ui8_i8",
                 inputs=[
                     ty_bneck_10_layer3_in,
                     ty_bneck_10_layer3_wts,
@@ -235,7 +245,7 @@ def mobilenetBottleneckB():
             )
             # ************************ bneck11 ************************
             bn11_conv2dk1_fused_relu = external_func(
-                "bn11_conv2dk1_i8",
+                "bn11_conv2dk1_relu_i8_ui8",
                 inputs=[
                     ty_bneck_11_layer1_in,
                     ty_bneck_11_layer1_wts,
@@ -247,7 +257,7 @@ def mobilenetBottleneckB():
                 ],
             )
             bn11_conv2dk3_dw = external_func(
-                "bn11_conv2dk3_ui8",
+                "bn11_conv2dk3_dw_stride1_relu_ui8_ui8",
                 inputs=[
                     ty_bneck_11_layer2_in,
                     ty_bneck_11_layer2_in,
@@ -265,7 +275,7 @@ def mobilenetBottleneckB():
                 ],
             )
             bn11_conv2dk1_skip = external_func(
-                "conv2dk1_skip_ui8_i8_i8",
+                "bn11_conv2dk1_skip_ui8_i8_i8",
                 inputs=[
                     ty_bneck_11_layer3_in,
                     ty_bneck_11_layer3_wts,
@@ -324,7 +334,8 @@ def mobilenetBottleneckB():
                 1,
                 ty_bneck_10_layer3_wts,
             )
-            object_fifo_link(OF_bneck_10_wts_L3L2, [OF_bneck_10_wts_memtile_layer1, OF_bneck_10_wts_memtile_layer2, OF_bneck_10_wts_memtile_layer3])
+            object_fifo_link(OF_bneck_10_wts_L3L2, [OF_bneck_10_wts_memtile_layer1, OF_bneck_10_wts_memtile_layer2, OF_bneck_10_wts_memtile_layer3],[],[0,bneck_10_InC1 * bneck_10_OutC1,bneck_10_InC1 * bneck_10_OutC1+3 * 3 * bneck_10_OutC2 * 1])
+
 
             # Output
             OF_bneck_10_act_layer1_layer2 = object_fifo("OF_bneck_10_act_layer1_layer2", ComputeTile02, [ComputeTile03], 4,ty_bneck_10_layer2_in,via_DMA=True)
@@ -360,7 +371,7 @@ def mobilenetBottleneckB():
                 1,
                 ty_bneck_11_layer3_wts,
             )
-            object_fifo_link(OF_bneck_11_wts_L3L2, [OF_bneck_11_wts_memtile_layer1, OF_bneck_11_wts_memtile_layer2, OF_bneck_11_wts_memtile_layer3])
+            object_fifo_link(OF_bneck_11_wts_L3L2, [OF_bneck_11_wts_memtile_layer1, OF_bneck_11_wts_memtile_layer2, OF_bneck_11_wts_memtile_layer3],[],[0,bneck_10_OutC3 * bneck_11_OutC1,bneck_10_OutC3 * bneck_11_OutC1+3 * 3 * bneck_11_OutC2 * 1])
 
             
             OF_bneck_11_layer3_final = object_fifo("OF_bneck_11_layer3_final", ComputeTile14, [MemTile11], 2, ty_bneck_11_layer3_out)
@@ -385,7 +396,7 @@ def mobilenetBottleneckB():
 
                     # acquire weights once
                     element0Weights = OF_bneck_10_wts_memtile_layer1.acquire(ObjectFifoPort.Consume, 1)
-                    scale = memref.load(rtp02, [0])
+                    scale = bn10_scaleFactor1
                     for _ in for_(bneck_10_InH1):
                         element0ActivactionsIn = OF_bneck_10_memtile_layer1_act.acquire(
                             ObjectFifoPort.Consume, 1
@@ -416,7 +427,7 @@ def mobilenetBottleneckB():
             # # # Compute tile 3
             @core(ComputeTile03, "bn10_conv2dk3_dw.o")
             def core_body():
-                scale = 8
+                scale = bn10_scaleFactor2
                 for _ in for_(sys.maxsize):
 
                     # acquire weights and rtps once
@@ -515,7 +526,7 @@ def mobilenetBottleneckB():
                 for _ in for_(0xFFFFFFFF):
                     elemWts = OF_bneck_10_wts_memtile_layer3.acquire(ObjectFifoPort.Consume, 1)
 
-                    scale = memref.load(rtp04, [0])
+                    scale = bn10_scaleFactor3
                     # scale = memref.load(rtpComputeTile02, [0])
 
                     for _ in for_(bneck_10_InH3):
@@ -549,7 +560,7 @@ def mobilenetBottleneckB():
 
                     # acquire weights once
                     element0Weights = OF_bneck_11_wts_memtile_layer1.acquire(ObjectFifoPort.Consume, 1)
-                    scale = memref.load(rtp05, [0])
+                    scale = bn11_scaleFactor1
                     for _ in for_(bneck_10_InH1):
                         element0ActivactionsIn = OF_bneck_10_layer3_bn_11_layer1.acquire(
                             ObjectFifoPort.Consume, 1
@@ -580,7 +591,7 @@ def mobilenetBottleneckB():
             # # # # # # Compute tile 3
             @core(ComputeTile15, "bn11_conv2dk3_dw.o")
             def core_body():
-                scale = 8
+                scale = bn11_scaleFactor2
                 for _ in for_(sys.maxsize):
 
                     # acquire weights and rtps once
@@ -674,14 +685,14 @@ def mobilenetBottleneckB():
                     yield_([])
 
             # # Compute tile 4
-            @core(ComputeTile14, "bn_conv2dk1_skip.o")
+            @core(ComputeTile14, "bn11_conv2dk1_skip.o")
             def core_body():
 
                 for _ in for_(0xFFFFFFFF):
                     elemWts = OF_bneck_11_wts_memtile_layer3.acquire(ObjectFifoPort.Consume, 1)
 
-                    scale = memref.load(rtp14, [0])
-                    skipScale = memref.load(rtp14, [1])
+                    scale = bn11_scaleFactor3
+                    skipScale = bn11_scaleFactorAdd
                     # scale = memref.load(rtpComputeTile02, [0])
 
                     for _ in for_(bneck_10_InH3):
@@ -782,4 +793,6 @@ def mobilenetBottleneckB():
         print(res)
 
 
-mobilenetBottleneckB()
+mobilenetBottleneckB(bn10_scaleFactor1=scale_factors["BN10"]["conv1x1_1"],bn10_scaleFactor2=scale_factors["BN10"]["conv3x3"],bn10_scaleFactor3=scale_factors["BN10"]["conv1x1_2"],
+                           bn11_scaleFactor1=scale_factors["BN11"]["conv1x1_1"],bn11_scaleFactor2=scale_factors["BN11"]["conv3x3"],bn11_scaleFactor3=scale_factors["BN11"]["conv1x1_2"],bn11_scaleFactorAdd=scale_factors["BN11"]["skip_add"],
+                           bn12_scaleFactor1=scale_factors["BN12"]["conv1x1_1"],bn12_scaleFactor2=scale_factors["BN12"]["conv3x3"],bn12_scaleFactor3=scale_factors["BN12"]["conv1x1_2"])

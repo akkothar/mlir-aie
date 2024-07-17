@@ -69,7 +69,7 @@ def conv2dk1():
 
             # AIE Core Function declarations
             conv2dk3_dw = external_func(
-                "conv2dk3_ui8",
+                "conv2dk3_dw_stride2_relu_ui8_ui8",
                 inputs=[
                     tensorLayer2In_ty,
                     tensorLayer2In_ty,

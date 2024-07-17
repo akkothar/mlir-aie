@@ -1004,17 +1004,17 @@ def main(opts):
                                             bn9_expand=bneck_9_OutC1,bn9_project=bneck_9_OutC3)
     quant_model.eval()
 
-    calibrate([(torch.rand(1, 16, 56, 56), 1) for _ in range(5)], quant_model.bn1_quant_conv1)
-    calibrate([(torch.rand(1, 64, 56, 56), 1) for _ in range(5)], quant_model.bn1_quant_conv2)
-    calibrate([(torch.rand(1, 64, 56, 56), 1) for _ in range(5)], quant_model.bn1_quant_conv3)
+    calibrate([(torch.rand(1, 16, 56, 56), 1) for _ in range(5)], quant_model)
+    # calibrate([(torch.rand(1, 64, 56, 56), 1) for _ in range(5)], quant_model.bn1_quant_conv2)
+    # calibrate([(torch.rand(1, 64, 56, 56), 1) for _ in range(5)], quant_model.bn1_quant_conv3)
 
-    calibrate([(torch.rand(1, 24, 56, 56), 1) for _ in range(5)], quant_model.bn2_quant_conv1)
-    calibrate([(torch.rand(1, 72, 56, 56), 1) for _ in range(5)], quant_model.bn2_quant_conv2)
-    calibrate([(torch.rand(1, 72, 56, 56), 1) for _ in range(5)], quant_model.bn2_quant_conv3)
+    # calibrate([(torch.rand(1, 24, 56, 56), 1) for _ in range(5)], quant_model.bn2_quant_conv1)
+    # calibrate([(torch.rand(1, 72, 56, 56), 1) for _ in range(5)], quant_model.bn2_quant_conv2)
+    # calibrate([(torch.rand(1, 72, 56, 56), 1) for _ in range(5)], quant_model.bn2_quant_conv3)
 
-    calibrate([(torch.rand(1, 24, 56, 56), 1) for _ in range(5)], quant_model.bn3_quant_conv1)
-    calibrate([(torch.rand(1, 72, 56, 56), 1) for _ in range(5)], quant_model.bn3_quant_conv2)
-    calibrate([(torch.rand(1, 72, 56, 56), 1) for _ in range(5)], quant_model.bn3_quant_conv3)
+    # calibrate([(torch.rand(1, 24, 56, 56), 1) for _ in range(5)], quant_model.bn3_quant_conv1)
+    # calibrate([(torch.rand(1, 72, 56, 56), 1) for _ in range(5)], quant_model.bn3_quant_conv2)
+    # calibrate([(torch.rand(1, 72, 56, 56), 1) for _ in range(5)], quant_model.bn3_quant_conv3)
     # calibrate(calib_loader, quant_model)
     # from brevitas.fx import brevitas_symbolic_trace
     # model = brevitas_symbolic_trace(quant_model)

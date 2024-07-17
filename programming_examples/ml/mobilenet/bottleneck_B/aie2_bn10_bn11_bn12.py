@@ -13,6 +13,15 @@ from aie.dialects.scf import *
 from aie.extras.dialects.ext import memref, arith
 from aie.extras.context import mlir_mod_ctx
 
+import json
+def read_scale_factors(file_path):
+    with open(file_path, 'r') as file:
+        return json.load(file)
+
+# Read the existing scale factors
+file_path = 'scale_factors.json'
+scale_factors = read_scale_factors(file_path)
+
 bneck_10_InW1 = 14
 bneck_10_InH1 = 14
 bneck_10_InC1 = 80
@@ -46,7 +55,9 @@ trace_size = 16384
 traceSizeInInt32s = trace_size // 4
 
 
-def mobilenetBottleneckB():
+def mobilenetBottleneckB(bn10_scaleFactor1=10,bn10_scaleFactor2=7,bn10_scaleFactor3=9,
+                           bn11_scaleFactor1=9,bn11_scaleFactor2=8,bn11_scaleFactor3=12,bn11_scaleFactorAdd=1,
+                           bn12_scaleFactor1=8,bn12_scaleFactor2=8,bn12_scaleFactor3=9):
     with mlir_mod_ctx() as ctx:
 
         @device(AIEDevice.npu1_3col)
@@ -58,346 +69,61 @@ def mobilenetBottleneckB():
             int32_ty = IntegerType.get_signless(32)
             uint32_ty = IntegerType.get_unsigned(32)
             # ************************ bneck10 ************************
-            ty_bneck_10_layer1_in = MemRefType.get(
-                (
-                    bneck_10_InW1,
-                    1,
-                    bneck_10_InC1,
-                ),
-                int8_ty,
-            )
-            ty_bneck_10_layer2_in = MemRefType.get(
-                (
-                    bneck_10_InW2,
-                    1,
-                    bneck_10_OutC1,
-                ),
-                uint8_ty,
-            )
-            ty_bneck_10_layer3_in = MemRefType.get(
-                (
-                    bneck_10_InW3,
-                    1,
-                    bneck_10_OutC2,
-                ),
-                uint8_ty,
-            )
-            
-            # define wts
-            ty_bneck_10_layer1_wts = MemRefType.get(
-                (bneck_10_InC1 * bneck_10_OutC1,), int8_ty
-            )
-            ty_bneck_10_layer2_wts = MemRefType.get(
-                (3 * 3 * bneck_10_OutC2 * 1,), int8_ty
-            )
-            ty_bneck_10_layer3_wts = MemRefType.get(
-                (bneck_10_OutC2 * bneck_10_OutC3,), int8_ty
-            )
-            ty_bneck_10_all_wts= MemRefType.get(
-                (
-                    bneck_10_InC1 * bneck_10_OutC1
-                    + 3 * 3 * bneck_10_OutC2 * 1
-                    + bneck_10_OutC2 * bneck_10_OutC3,
-                ),
-                int8_ty,
-            )
-            # output
-            ty_bneck_10_layer1_out = MemRefType.get(
-                (
-                    bneck_10_InW2,
-                    1,
-                    bneck_10_OutC1,
-                ),
-                uint8_ty,
-            )
-            ty_bneck_10_layer2_out = MemRefType.get(
-                (
-                    bneck_10_InW3,
-                    1,
-                    bneck_10_OutC2,
-                ),
-                uint8_ty,
-            )
-            ty_bneck_10_layer3_out = MemRefType.get(
-                (
-                    bneck_10_InW3,
-                    1,
-                    bneck_10_OutC3,
-                ),
-                int8_ty,
-            )
-        # ************************ bneck11 ************************
-            # input
-            ty_bneck_11_layer1_in = MemRefType.get(
-                (
-                    bneck_10_InW3,
-                    1,
-                    bneck_10_OutC3,
-                ),
-                int8_ty,
-            )
-            ty_bneck_11_layer2_in = MemRefType.get(
-                (
-                    bneck_10_InW3,
-                    1,
-                    bneck_11_OutC1,
-                ),
-                uint8_ty,
-            )
-            ty_bneck_11_layer3_in = MemRefType.get(
-                (
-                    bneck_10_InW3,
-                    1,
-                    bneck_11_OutC2,
-                ),
-                uint8_ty,
-            )
-         
-            # define wts
-            ty_bneck_11_layer1_wts = MemRefType.get(
-                (bneck_10_OutC3 * bneck_11_OutC1,), int8_ty
-            )
-            ty_bneck_11_layer2_wts = MemRefType.get(
-                (3 * 3 * bneck_11_OutC2 * 1,), int8_ty
-            )
-            ty_bneck_11_layer3_wts = MemRefType.get(
-                (bneck_11_OutC2 * bneck_11_OutC3,), int8_ty
-            )
-            ty_bneck_11_all_wts= MemRefType.get(
-                (
-                    bneck_10_OutC3 * bneck_11_OutC1
-                    + 3 * 3 * bneck_11_OutC2 * 1
-                    + bneck_11_OutC2 * bneck_11_OutC3,
-                ),
-                int8_ty,
-            )
+            ty_bneck_10_layer1_in = MemRefType.get((bneck_10_InW1, 1, bneck_10_InC1, ), int8_ty, ) 
+            ty_bneck_10_layer2_in = MemRefType.get((bneck_10_InW2, 1, bneck_10_OutC1, ), uint8_ty, ) 
+            ty_bneck_10_layer3_in = MemRefType.get((bneck_10_InW3, 1, bneck_10_OutC2, ), uint8_ty, ) 
 
-            # output
-            ty_bneck_11_layer1_out = MemRefType.get(
-                (
-                    bneck_10_InW3,
-                    1,
-                    bneck_11_OutC1,
-                ),
-                uint8_ty,
-            )
-            ty_bneck_11_layer2_out = MemRefType.get(
-                (
-                    bneck_10_InW3,
-                    1,
-                    bneck_11_OutC2,
-                ),
-                uint8_ty,
-            )
-            ty_bneck_11_layer3_out = MemRefType.get(
-                (
-                    bneck_10_InW3,
-                    1,
-                    bneck_11_OutC3,
-                ),
-                int8_ty,
-            )
-            # ************************ bneck12 ************************
-            ty_bneck_12_layer1_in = MemRefType.get(
-                (
-                    bneck_10_InW1,
-                    1,
-                    bneck_11_OutC3,
-                ),
-                int8_ty,
-            )
-            ty_bneck_12_layer2_in = MemRefType.get(
-                (
-                    bneck_10_InW1,
-                    1,
-                    bneck_12_OutC1,
-                ),
-                uint8_ty,
-            )
-            ty_bneck_12_layer3_in = MemRefType.get(
-                (
-                    bneck_12_InW2,
-                    1,
-                    bneck_12_OutC2,
-                ),
-                uint8_ty,
-            )
-            # define wts
-            ty_bneck_12_layer1_wts = MemRefType.get(
-                (bneck_11_OutC3 * bneck_12_OutC1,), int8_ty
-            )
-            ty_bneck_12_layer2_wts = MemRefType.get(
-                (3 * 3 * bneck_12_OutC2 * 1,), int8_ty
-            )
-            ty_bneck_12_layer3_wts = MemRefType.get(
-                (bneck_12_OutC2 * bneck_12_OutC3,), int8_ty
-            )
-            ty_bneck_12_all_wts= MemRefType.get(
-                (
-                    bneck_11_OutC3 * bneck_12_OutC1
-                    + 3 * 3 * bneck_12_OutC2 * 1
-                    + bneck_12_OutC2 * bneck_12_OutC3,
-                ),
-                int8_ty,
-            )
-            # output
-            ty_bneck_12_layer1_out = MemRefType.get(
-                (
-                    bneck_10_InW3,
-                    1,
-                    bneck_12_OutC1,
-                ),
-                uint8_ty,
-            )
-            ty_bneck_12_layer2_out = MemRefType.get(
-                (
-                    bneck_12_InW2,
-                    1,
-                    bneck_12_OutC2,
-                ),
-                uint8_ty,
-            )
-            ty_bneck_12_layer3_out = MemRefType.get(
-                (
-                    bneck_12_InW2,
-                    1,
-                    bneck_12_OutC3,
-                ),
-                int8_ty,
-            )
+            # define wts 
+            ty_bneck_10_layer1_wts = MemRefType.get((bneck_10_InC1 * bneck_10_OutC1,), int8_ty ) 
+            ty_bneck_10_layer2_wts = MemRefType.get((3 * 3 * bneck_10_OutC2 * 1,), int8_ty ) 
+            ty_bneck_10_layer3_wts = MemRefType.get((bneck_10_OutC2 * bneck_10_OutC3,), int8_ty ) 
+            ty_bneck_10_all_wts= MemRefType.get((bneck_10_InC1 * bneck_10_OutC1 + 3 * 3 * bneck_10_OutC2 * 1 + bneck_10_OutC2 * bneck_10_OutC3, ), int8_ty, ) 
+
+            # output 
+            ty_bneck_10_layer1_out = MemRefType.get((bneck_10_InW2, 1, bneck_10_OutC1, ), uint8_ty, ) 
+            ty_bneck_10_layer2_out = MemRefType.get((bneck_10_InW3, 1, bneck_10_OutC2, ), uint8_ty, ) 
+            ty_bneck_10_layer3_out = MemRefType.get((bneck_10_InW3, 1, bneck_10_OutC3, ), int8_ty, ) 
+            # ************************ bneck11 ************************ 
+            # input 
+            ty_bneck_11_layer1_in = MemRefType.get((bneck_10_InW3, 1, bneck_10_OutC3, ), int8_ty, ) 
+            ty_bneck_11_layer2_in = MemRefType.get((bneck_10_InW3, 1, bneck_11_OutC1, ), uint8_ty, ) 
+            ty_bneck_11_layer3_in = MemRefType.get((bneck_10_InW3, 1, bneck_11_OutC2, ), uint8_ty, ) 
+            # define wts 
+            ty_bneck_11_layer1_wts = MemRefType.get((bneck_10_OutC3 * bneck_11_OutC1,), int8_ty ) 
+            ty_bneck_11_layer2_wts = MemRefType.get((3 * 3 * bneck_11_OutC2 * 1,), int8_ty ) 
+            ty_bneck_11_layer3_wts = MemRefType.get((bneck_11_OutC2 * bneck_11_OutC3,), int8_ty ) 
+            ty_bneck_11_all_wts= MemRefType.get((bneck_10_OutC3 * bneck_11_OutC1 + 3 * 3 * bneck_11_OutC2 * 1 + bneck_11_OutC2 * bneck_11_OutC3, ), int8_ty, ) 
+            # output 
+            ty_bneck_11_layer1_out = MemRefType.get((bneck_10_InW3, 1, bneck_11_OutC1, ), uint8_ty, ) 
+            ty_bneck_11_layer2_out = MemRefType.get((bneck_10_InW3, 1, bneck_11_OutC2, ), uint8_ty, ) 
+            ty_bneck_11_layer3_out = MemRefType.get((bneck_10_InW3, 1, bneck_11_OutC3, ), int8_ty, ) 
+            # ************************ bneck12 ************************ 
+            ty_bneck_12_layer1_in = MemRefType.get((bneck_10_InW1, 1, bneck_11_OutC3, ), int8_ty, ) 
+            ty_bneck_12_layer2_in = MemRefType.get((bneck_10_InW1, 1, bneck_12_OutC1, ), uint8_ty, ) 
+            ty_bneck_12_layer3_in = MemRefType.get((bneck_12_InW2, 1, bneck_12_OutC2, ), uint8_ty, ) 
+            # define wts 
+            ty_bneck_12_layer1_wts = MemRefType.get((bneck_11_OutC3 * bneck_12_OutC1,), int8_ty ) 
+            ty_bneck_12_layer2_wts = MemRefType.get((3 * 3 * bneck_12_OutC2 * 1,), int8_ty ) 
+            ty_bneck_12_layer3_wts = MemRefType.get((bneck_12_OutC2 * bneck_12_OutC3,), int8_ty ) 
+            ty_bneck_12_all_wts= MemRefType.get((bneck_11_OutC3 * bneck_12_OutC1 + 3 * 3 * bneck_12_OutC2 * 1 + bneck_12_OutC2 * bneck_12_OutC3, ), int8_ty, ) 
+            # output 
+            ty_bneck_12_layer1_out = MemRefType.get((bneck_10_InW3, 1, bneck_12_OutC1, ), uint8_ty, ) 
+            ty_bneck_12_layer2_out = MemRefType.get((bneck_12_InW2, 1, bneck_12_OutC2, ), uint8_ty, ) 
+            ty_bneck_12_layer3_out = MemRefType.get((bneck_12_InW2, 1, bneck_12_OutC3, ), int8_ty, )
             # AIE Core Function declarations
             # ************************ bneck10 ************************
-            bn10_conv2dk1_fused_relu = external_func(
-                "bn10_conv2dk1_relu_i8_ui8",
-                inputs=[
-                    ty_bneck_10_layer1_in,
-                    ty_bneck_10_layer1_wts,
-                    ty_bneck_10_layer1_out,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                ],
-            )
-            bn10_conv2dk3_dw = external_func(
-                "bn10_conv2dk3_dw_stride1_relu_ui8_ui8",
-                inputs=[
-                    ty_bneck_10_layer2_in,
-                    ty_bneck_10_layer2_in,
-                    ty_bneck_10_layer2_in,
-                    ty_bneck_10_layer2_wts,
-                    ty_bneck_10_layer2_out,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                ],
-            )
-            bn10_conv2dk1_ui8 = external_func(
-                "bn10_conv2dk1_ui8_i8",
-                inputs=[
-                    ty_bneck_10_layer3_in,
-                    ty_bneck_10_layer3_wts,
-                    ty_bneck_10_layer3_out,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                ],
-            )
+            bn10_conv2dk1_fused_relu = external_func("bn10_conv2dk1_relu_i8_ui8", inputs=[ty_bneck_10_layer1_in, ty_bneck_10_layer1_wts, ty_bneck_10_layer1_out, int32_ty, int32_ty, int32_ty, int32_ty, ], )
+            bn10_conv2dk3_dw = external_func("bn10_conv2dk3_dw_stride1_relu_ui8_ui8", inputs=[ty_bneck_10_layer2_in, ty_bneck_10_layer2_in, ty_bneck_10_layer2_in, ty_bneck_10_layer2_wts, ty_bneck_10_layer2_out, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, ], )
+            bn10_conv2dk1_ui8 = external_func("bn10_conv2dk1_ui8_i8", inputs=[ty_bneck_10_layer3_in, ty_bneck_10_layer3_wts, ty_bneck_10_layer3_out, int32_ty, int32_ty, int32_ty, int32_ty, ], )
             # ************************ bneck11 ************************
-            bn11_conv2dk1_fused_relu = external_func(
-                "bn11_conv2dk1_relu_i8_ui8",
-                inputs=[
-                    ty_bneck_11_layer1_in,
-                    ty_bneck_11_layer1_wts,
-                    ty_bneck_11_layer1_out,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                ],
-            )
-            bn11_conv2dk3_dw = external_func(
-                "bn11_conv2dk3_dw_stride1_relu_ui8_ui8",
-                inputs=[
-                    ty_bneck_11_layer2_in,
-                    ty_bneck_11_layer2_in,
-                    ty_bneck_11_layer2_in,
-                    ty_bneck_11_layer2_wts,
-                    ty_bneck_11_layer2_out,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                ],
-            )
-            bn11_conv2dk1_skip = external_func(
-                "bn11_conv2dk1_skip_ui8_i8_i8",
-                inputs=[
-                    ty_bneck_11_layer3_in,
-                    ty_bneck_11_layer3_wts,
-                    ty_bneck_11_layer3_out,
-                    ty_bneck_11_layer1_in,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                ],
-            )
+            bn11_conv2dk1_fused_relu = external_func("bn11_conv2dk1_relu_i8_ui8", inputs=[ty_bneck_11_layer1_in, ty_bneck_11_layer1_wts, ty_bneck_11_layer1_out, int32_ty, int32_ty, int32_ty, int32_ty, ], )
+            bn11_conv2dk3_dw = external_func("bn11_conv2dk3_dw_stride1_relu_ui8_ui8", inputs=[ty_bneck_11_layer2_in, ty_bneck_11_layer2_in, ty_bneck_11_layer2_in, ty_bneck_11_layer2_wts, ty_bneck_11_layer2_out, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, ], )
+            bn11_conv2dk1_skip = external_func("bn11_conv2dk1_skip_ui8_i8_i8", inputs=[ty_bneck_11_layer3_in, ty_bneck_11_layer3_wts, ty_bneck_11_layer3_out, ty_bneck_11_layer1_in, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, ], )
 
              # ************************ bneck12 ************************
-            bn12_conv2dk1_fused_relu = external_func(
-                "bn12_conv2dk1_relu_i8_ui8",
-                inputs=[
-                    ty_bneck_12_layer1_in,
-                    ty_bneck_12_layer1_wts,
-                    ty_bneck_12_layer1_out,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                ],
-            )
-            bn12_conv2dk3_dw = external_func(
-                "bn12_conv2dk3_dw_stride2_relu_ui8_ui8",
-                inputs=[
-                    ty_bneck_12_layer2_in,
-                    ty_bneck_12_layer2_in,
-                    ty_bneck_12_layer2_in,
-                    ty_bneck_12_layer2_wts,
-                    ty_bneck_12_layer2_out,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                ],
-            )
-            bn12_conv2dk1_ui8 = external_func(
-                "bn12_conv2dk1_ui8_i8",
-                inputs=[
-                    ty_bneck_12_layer3_in,
-                    ty_bneck_12_layer3_wts,
-                    ty_bneck_12_layer3_out,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                    int32_ty,
-                ],
-            )
+            bn12_conv2dk1_fused_relu = external_func("bn12_conv2dk1_relu_i8_ui8", inputs=[ty_bneck_12_layer1_in, ty_bneck_12_layer1_wts, ty_bneck_12_layer1_out, int32_ty, int32_ty, int32_ty, int32_ty, ], )
+            bn12_conv2dk3_dw = external_func("bn12_conv2dk3_dw_stride2_relu_ui8_ui8", inputs=[ty_bneck_12_layer2_in, ty_bneck_12_layer2_in, ty_bneck_12_layer2_in, ty_bneck_12_layer2_wts, ty_bneck_12_layer2_out, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, ], )
+            bn12_conv2dk1_ui8 = external_func("bn12_conv2dk1_ui8_i8", inputs=[ty_bneck_12_layer3_in, ty_bneck_12_layer3_wts, ty_bneck_12_layer3_out, int32_ty, int32_ty, int32_ty, int32_ty, ], )
             
             # Tile declarations
             ShimTile00 = tile(0, 0)
@@ -425,34 +151,16 @@ def mobilenetBottleneckB():
             # AIE-array data movement with object fifos
             # ************************ bneck10 ************************
             # Input
-            OF_inOF_act_L3L2 = object_fifo(
-                "inOF_act_L3L2", ShimTile00, MemTile01, 2, ty_bneck_10_layer1_in
-            )
+            OF_inOF_act_L3L2 = object_fifo("inOF_act_L3L2", ShimTile00, MemTile01, 2, ty_bneck_10_layer1_in )
             OF_bneck_10_memtile_layer1_act = object_fifo("OF_bneck_10_memtile_layer1_act", MemTile01, ComputeTile02, 2, ty_bneck_10_layer1_in)
             object_fifo_link(OF_inOF_act_L3L2, OF_bneck_10_memtile_layer1_act)
 
             # wts
-            OF_bneck_10_wts_L3L2 = object_fifo(
-                "OF_bneck_10_wts_L3L2", ShimTile00, MemTile01, 1, ty_bneck_10_all_wts
-            )
+            OF_bneck_10_wts_L3L2 = object_fifo("OF_bneck_10_wts_L3L2", ShimTile00, MemTile01, 1, ty_bneck_10_all_wts )
        
-            OF_bneck_10_wts_memtile_layer1 = object_fifo(
-                "OF_bneck_10_wts_memtile_layer1", MemTile01, ComputeTile02, 1, ty_bneck_10_layer1_wts
-            )
-            OF_bneck_10_wts_memtile_layer2 = object_fifo(
-                "OF_bneck_10_wts_memtile_layer2",
-                MemTile01,
-                ComputeTile03,
-                1,
-                ty_bneck_10_layer2_wts,
-            )
-            OF_bneck_10_wts_memtile_layer3 = object_fifo(
-                "OF_bneck_10_wts_memtile_layer3",
-                MemTile01,
-                ComputeTile04,
-                1,
-                ty_bneck_10_layer3_wts,
-            )
+            OF_bneck_10_wts_memtile_layer1 = object_fifo("OF_bneck_10_wts_memtile_layer1", MemTile01, ComputeTile02, 1, ty_bneck_10_layer1_wts )
+            OF_bneck_10_wts_memtile_layer2 = object_fifo("OF_bneck_10_wts_memtile_layer2", MemTile01, ComputeTile03, 1, ty_bneck_10_layer2_wts, )
+            OF_bneck_10_wts_memtile_layer3 = object_fifo("OF_bneck_10_wts_memtile_layer3", MemTile01, ComputeTile04, 1, ty_bneck_10_layer3_wts, )
             object_fifo_link(OF_bneck_10_wts_L3L2, [OF_bneck_10_wts_memtile_layer1, OF_bneck_10_wts_memtile_layer2, OF_bneck_10_wts_memtile_layer3],[],[0,bneck_10_InC1 * bneck_10_OutC1,bneck_10_InC1 * bneck_10_OutC1+3 * 3 * bneck_10_OutC2 * 1])
 
             # Output
@@ -460,70 +168,39 @@ def mobilenetBottleneckB():
             OF_bneck_10_act_layer2_layer3 = object_fifo("OF_bneck_10_act_layer2_layer3", ComputeTile03, [ComputeTile04], 2,ty_bneck_10_layer3_in)
             
             # ************************ bneck11 ************************
-            OF_bneck_10_layer3_bn_11_layer1 = object_fifo("OF_bneck_10_layer3_bn_11_layer1", ComputeTile04, [ComputeTile05,MemTile01], [2, 2, 4], ty_bneck_11_layer1_in)
-            OF_bneck_11_skip = object_fifo("OF_bneck_11_skip", MemTile01, [ComputeTile14], 2,ty_bneck_11_layer1_in)
+            # OF_bneck_10_layer3_bn_11_layer1 = object_fifo("OF_bneck_10_layer3_bn_11_layer1", ComputeTile04, [ComputeTile05], 2, ty_bneck_11_layer1_in)
+       
+            OF_bneck_10_layer3_bn_11_layer1 = object_fifo("OF_bneck_10_layer3_bn_11_layer1", ComputeTile04, [ComputeTile05,MemTile11], [2, 2, 4], ty_bneck_11_layer1_in)
+            OF_bneck_11_skip = object_fifo("OF_bneck_11_skip", MemTile11, [ComputeTile14], 2,ty_bneck_11_layer1_in)
             object_fifo_link(OF_bneck_10_layer3_bn_11_layer1,OF_bneck_11_skip )
+
             
             OF_bneck_11_act_layer1_layer2 = object_fifo("OF_bneck_11_act_layer1_layer2", ComputeTile05, [ComputeTile15], 4,ty_bneck_11_layer2_in,via_DMA=True)
             OF_bneck_11_act_layer2_layer3 = object_fifo("OF_bneck_11_act_layer2_layer3", ComputeTile15, [ComputeTile14], 2,ty_bneck_11_layer3_in)
 
             # # wts
-            OF_bneck_11_wts_L3L2 = object_fifo(
-                "OF_bneck_11_wts_L3L2", ShimTile10, MemTile11, 1, ty_bneck_11_all_wts
-            )
-       
-            OF_bneck_11_wts_memtile_layer1 = object_fifo(
-                "OF_bneck_11_wts_memtile_layer1", MemTile11, ComputeTile05, 1, ty_bneck_11_layer1_wts
-            )
-            OF_bneck_11_wts_memtile_layer2 = object_fifo(
-                "OF_bneck_11_wts_memtile_layer2",
-                MemTile11,
-                ComputeTile15,
-                1,
-                ty_bneck_11_layer2_wts,
-            )
-            OF_bneck_11_wts_memtile_layer3 = object_fifo(
-                "OF_bneck_11_wts_memtile_layer3",
-                MemTile11,
-                ComputeTile14,
-                1,
-                ty_bneck_11_layer3_wts,
-            )
+            OF_bneck_11_wts_L3L2 = object_fifo("OF_bneck_11_wts_L3L2", ShimTile10, MemTile11, 1, ty_bneck_11_all_wts )
+            OF_bneck_11_wts_memtile_layer1 = object_fifo("OF_bneck_11_wts_memtile_layer1", MemTile11, ComputeTile05, 1, ty_bneck_11_layer1_wts )
+            OF_bneck_11_wts_memtile_layer2 = object_fifo("OF_bneck_11_wts_memtile_layer2", MemTile11, ComputeTile15, 1, ty_bneck_11_layer2_wts, )
+            OF_bneck_11_wts_memtile_layer3 = object_fifo("OF_bneck_11_wts_memtile_layer3", MemTile11, ComputeTile14, 1, ty_bneck_11_layer3_wts, )
             object_fifo_link(OF_bneck_11_wts_L3L2, [OF_bneck_11_wts_memtile_layer1, OF_bneck_11_wts_memtile_layer2, OF_bneck_11_wts_memtile_layer3],[],[0,bneck_10_OutC3 * bneck_11_OutC1,bneck_10_OutC3 * bneck_11_OutC1+3 * 3 * bneck_11_OutC2 * 1])
 
             
-            # OF_bneck_11_layer3_final = object_fifo("OF_bneck_11_layer3_final", ComputeTile14, [MemTile11], 2, ty_bneck_11_layer3_out)
-            # OF_outOFL2L3 = object_fifo("outOFL2L3", MemTile11, [ShimTile10], 2, ty_bneck_11_layer3_out)
-            # object_fifo_link(OF_bneck_11_layer3_final, OF_outOFL2L3)
+
+
 
             # ************************ bneck12 ************************
             OF_bneck_11_layer3_bn_12_layer1 = object_fifo("OF_bneck_11_layer3_bn_12_layer1", ComputeTile14, [ComputeTile13], 2, ty_bneck_12_layer1_in)
 
+            # OF_bneck_12_act_layer1_layer2 = object_fifo("OF_bneck_12_act_layer1_layer2", ComputeTile13, [MemTile21], 2,ty_bneck_12_layer1_out)
             OF_bneck_12_act_layer1_layer2 = object_fifo("OF_bneck_12_act_layer1_layer2", ComputeTile13, [ComputeTile12], 4,ty_bneck_12_layer1_out,via_DMA=True)
             OF_bneck_12_act_layer2_layer3 = object_fifo("OF_bneck_12_act_layer2_layer3", ComputeTile12, [ComputeTile22], 2,ty_bneck_12_layer2_out)
 
             # # wts
-            OF_bneck_12_wts_L3L2 = object_fifo(
-                "OF_bneck_12_wts_L3L2", ShimTile10, MemTile21, 1, ty_bneck_12_all_wts
-            )
-       
-            OF_bneck_12_wts_memtile_layer1 = object_fifo(
-                "OF_bneck_12_wts_memtile_layer1", MemTile21, ComputeTile13, 1, ty_bneck_12_layer1_wts
-            )
-            OF_bneck_12_wts_memtile_layer2 = object_fifo(
-                "OF_bneck_12_wts_memtile_layer2",
-                MemTile21,
-                ComputeTile12,
-                1,
-                ty_bneck_12_layer2_wts,
-            )
-            OF_bneck_12_wts_memtile_layer3 = object_fifo(
-                "OF_bneck_12_wts_memtile_layer3",
-                MemTile21,
-                ComputeTile22,
-                1,
-                ty_bneck_12_layer3_wts,
-            )
+            OF_bneck_12_wts_L3L2 = object_fifo("OF_bneck_12_wts_L3L2", ShimTile10, MemTile21, 1, ty_bneck_12_all_wts )
+            OF_bneck_12_wts_memtile_layer1 = object_fifo("OF_bneck_12_wts_memtile_layer1", MemTile21, ComputeTile13, 1, ty_bneck_12_layer1_wts )
+            OF_bneck_12_wts_memtile_layer2 = object_fifo("OF_bneck_12_wts_memtile_layer2", MemTile21, ComputeTile12, 1, ty_bneck_12_layer2_wts, )
+            OF_bneck_12_wts_memtile_layer3 = object_fifo("OF_bneck_12_wts_memtile_layer3", MemTile21, ComputeTile22, 1, ty_bneck_12_layer3_wts, )
             object_fifo_link(OF_bneck_12_wts_L3L2, [OF_bneck_12_wts_memtile_layer1, OF_bneck_12_wts_memtile_layer2, OF_bneck_12_wts_memtile_layer3],[],[0,bneck_11_OutC3 * bneck_12_OutC1,bneck_11_OutC3 * bneck_12_OutC1+3 * 3 * bneck_12_OutC2 * 1])
 
             
@@ -532,17 +209,17 @@ def mobilenetBottleneckB():
             object_fifo_link(OF_bneck_12_layer3_final, OF_outOFL2L3)
             # Set up compute tiles
 
-            rtp02 = Buffer(ComputeTile02, [16], T.i32(), "rtp02")
-            rtp03 = Buffer(ComputeTile03, [16], T.i32(), "rtp03")
-            rtp04 = Buffer(ComputeTile04, [16], T.i32(), "rtp04")
+            # rtp02 = Buffer(ComputeTile02, [16], T.i32(), "rtp02")
+            # rtp03 = Buffer(ComputeTile03, [16], T.i32(), "rtp03")
+            # rtp04 = Buffer(ComputeTile04, [16], T.i32(), "rtp04")
 
-            rtp05 = Buffer(ComputeTile05, [16], T.i32(), "rtp05")
-            rtp15 = Buffer(ComputeTile15, [16], T.i32(), "rtp15")
-            rtp14 = Buffer(ComputeTile14, [16], T.i32(), "rtp14")
+            # rtp05 = Buffer(ComputeTile05, [16], T.i32(), "rtp05")
+            # rtp15 = Buffer(ComputeTile15, [16], T.i32(), "rtp15")
+            # rtp14 = Buffer(ComputeTile14, [16], T.i32(), "rtp14")
 
-            rtp13 = Buffer(ComputeTile13, [16], T.i32(), "rtp13")
-            rtp12 = Buffer(ComputeTile12, [16], T.i32(), "rtp12")
-            rtp22 = Buffer(ComputeTile22, [16], T.i32(), "rtp22")
+            # rtp13 = Buffer(ComputeTile13, [16], T.i32(), "rtp13")
+            # rtp12 = Buffer(ComputeTile12, [16], T.i32(), "rtp12")
+            # rtp22 = Buffer(ComputeTile22, [16], T.i32(), "rtp22")
 
         # ************************ bneck10 ************************
              # 1x1 conv2d
@@ -552,7 +229,7 @@ def mobilenetBottleneckB():
 
                     # acquire weights once
                     element0Weights = OF_bneck_10_wts_memtile_layer1.acquire(ObjectFifoPort.Consume, 1)
-                    scale = memref.load(rtp02, [0])
+                    scale = bn10_scaleFactor1
                     for _ in for_(bneck_10_InH1):
                         element0ActivactionsIn = OF_bneck_10_memtile_layer1_act.acquire(
                             ObjectFifoPort.Consume, 1
@@ -583,7 +260,7 @@ def mobilenetBottleneckB():
             # # # Compute tile 3
             @core(ComputeTile03, "bn10_conv2dk3_dw.o")
             def core_body():
-                scale = 7
+                scale = bn10_scaleFactor2
                 for _ in for_(sys.maxsize):
 
                     # acquire weights and rtps once
@@ -682,7 +359,7 @@ def mobilenetBottleneckB():
                 for _ in for_(0xFFFFFFFF):
                     elemWts = OF_bneck_10_wts_memtile_layer3.acquire(ObjectFifoPort.Consume, 1)
 
-                    scale = memref.load(rtp04, [0])
+                    scale = bn10_scaleFactor3
                     # scale = memref.load(rtpComputeTile02, [0])
 
                     for _ in for_(bneck_10_InH3):
@@ -701,7 +378,6 @@ def mobilenetBottleneckB():
                                 scale,
                             ],
                         )
-
                         objectfifo_release(ObjectFifoPort.Consume, "OF_bneck_10_act_layer2_layer3", 1)
                         objectfifo_release(ObjectFifoPort.Produce, "OF_bneck_10_layer3_bn_11_layer1", 1)
                         yield_([])
@@ -716,7 +392,7 @@ def mobilenetBottleneckB():
 
                     # acquire weights once
                     element0Weights = OF_bneck_11_wts_memtile_layer1.acquire(ObjectFifoPort.Consume, 1)
-                    scale = memref.load(rtp05, [0])
+                    scale = bn11_scaleFactor1
                     for _ in for_(bneck_10_InH1):
                         element0ActivactionsIn = OF_bneck_10_layer3_bn_11_layer1.acquire(
                             ObjectFifoPort.Consume, 1
@@ -747,7 +423,7 @@ def mobilenetBottleneckB():
             # # # # # # Compute tile 3
             @core(ComputeTile15, "bn11_conv2dk3_dw.o")
             def core_body():
-                scale = 8
+                scale = bn11_scaleFactor2
                 for _ in for_(sys.maxsize):
 
                     # acquire weights and rtps once
@@ -847,8 +523,8 @@ def mobilenetBottleneckB():
                 for _ in for_(0xFFFFFFFF):
                     elemWts = OF_bneck_11_wts_memtile_layer3.acquire(ObjectFifoPort.Consume, 1)
 
-                    scale = memref.load(rtp14, [0])
-                    skipScale = memref.load(rtp14, [1])
+                    scale = bn11_scaleFactor3
+                    skipScale = bn11_scaleFactorAdd
                     # scale = memref.load(rtpComputeTile02, [0])
 
                     for _ in for_(bneck_10_InH3):
@@ -879,7 +555,7 @@ def mobilenetBottleneckB():
                         yield_([])
                     objectfifo_release(ObjectFifoPort.Consume, "OF_bneck_11_wts_memtile_layer3", 1)
                     yield_([])
-        # ************************ bneck12 ************************
+        # # ************************ bneck12 ************************
              # 1x1 conv2d
             @core(ComputeTile13, "bn12_conv2dk1_fused_relu.o")
             def core_body():
@@ -887,7 +563,7 @@ def mobilenetBottleneckB():
 
                     # acquire weights once
                     element0Weights = OF_bneck_12_wts_memtile_layer1.acquire(ObjectFifoPort.Consume, 1)
-                    scale = memref.load(rtp13, [0])
+                    scale = bn12_scaleFactor1
                     for _ in for_(bneck_10_InH1):
                         element0ActivactionsIn = OF_bneck_11_layer3_bn_12_layer1.acquire(
                             ObjectFifoPort.Consume, 1
@@ -914,9 +590,10 @@ def mobilenetBottleneckB():
                         yield_([])
                     objectfifo_release(ObjectFifoPort.Consume, "OF_bneck_12_wts_memtile_layer1", 1)
                     yield_([])
+
             @core(ComputeTile12, "bn12_conv2dk3_dw_stride2.o")
             def core_body():
-                scale = 8
+                scale = bn12_scaleFactor2
                 for _ in for_(sys.maxsize):
 
                     # acquire weights and rtps once
@@ -991,7 +668,7 @@ def mobilenetBottleneckB():
                 for _ in for_(0xFFFFFFFF):
                     elemWts = OF_bneck_12_wts_memtile_layer3.acquire(ObjectFifoPort.Consume, 1)
 
-                    scale = memref.load(rtp22, [0])
+                    scale = bn12_scaleFactor3
                     # scale = memref.load(rtpComputeTile02, [0])
 
                     for _ in for_(bneck_12_InH2):
@@ -1019,8 +696,8 @@ def mobilenetBottleneckB():
             
             # # instruction stream generation
             activationsInSize32b = (bneck_10_InW1 * bneck_10_InH1 * bneck_10_InC1) // 4
-            # acitivationsOutSize32b = (bneck_12_InW2 * bneck_12_InH2 * bneck_12_OutC3) // 4
-            acitivationsOutSize32b = (bneck_12_InW2 * bneck_12_InW2 * bneck_12_OutC3) // 4
+            acitivationsOutSize32b = (bneck_12_InW2 * bneck_12_InH2 * bneck_12_OutC3) // 4
+            # acitivationsOutSize32b = (bneck_10_InW1 * bneck_10_InH1 * bneck_12_OutC1) // 4
 
             bn10_totalWeightsSize32b = (
             bneck_10_InC1*bneck_10_OutC1+
@@ -1055,19 +732,19 @@ def mobilenetBottleneckB():
 
             @FuncOp.from_py_func(activationsInL3_ty, weightsInL3_ty, activationsOutL3_ty)
             def sequence(inputFromL3, weightsFromL3, outputToL3):
-                NpuWriteRTPOp("rtp02", col=0, row=2, index=0, value=10)
-                NpuWriteRTPOp("rtp03", col=0, row=3, index=0, value=7)
-                NpuWriteRTPOp("rtp04", col=0, row=4, index=0, value=9)
+                # NpuWriteRTPOp("rtp02", col=0, row=2, index=0, value=10)
+                # NpuWriteRTPOp("rtp03", col=0, row=3, index=0, value=7)
+                # NpuWriteRTPOp("rtp04", col=0, row=4, index=0, value=9)
 
 
-                NpuWriteRTPOp("rtp05", col=0, row=5, index=0, value=9)
-                NpuWriteRTPOp("rtp15", col=1, row=5, index=0, value=8)
-                NpuWriteRTPOp("rtp14", col=1, row=4, index=0, value=12)
-                NpuWriteRTPOp("rtp14", col=1, row=4, index=1, value=1)
+                # NpuWriteRTPOp("rtp05", col=0, row=5, index=0, value=9)
+                # NpuWriteRTPOp("rtp15", col=1, row=5, index=0, value=8)
+                # NpuWriteRTPOp("rtp14", col=1, row=4, index=0, value=12)
+                # NpuWriteRTPOp("rtp14", col=1, row=4, index=1, value=1)
 
-                NpuWriteRTPOp("rtp13", col=1, row=3, index=0, value=8)
-                NpuWriteRTPOp("rtp12", col=1, row=2, index=0, value=8)
-                NpuWriteRTPOp("rtp22", col=2, row=2, index=0, value=9)
+                # NpuWriteRTPOp("rtp13", col=1, row=3, index=0, value=8)
+                # NpuWriteRTPOp("rtp12", col=1, row=2, index=0, value=8)
+                # NpuWriteRTPOp("rtp22", col=2, row=2, index=0, value=9)
                 
                 npu_dma_memcpy_nd(
                     metadata="inOF_act_L3L2",
@@ -1110,4 +787,11 @@ def mobilenetBottleneckB():
         print(res)
 
 
-mobilenetBottleneckB()
+mobilenetBottleneckB(bn10_scaleFactor1=scale_factors["BN10"]["conv1x1_1"],bn10_scaleFactor2=scale_factors["BN10"]["conv3x3"],bn10_scaleFactor3=scale_factors["BN10"]["conv1x1_2"],
+                           bn11_scaleFactor1=scale_factors["BN11"]["conv1x1_1"],bn11_scaleFactor2=scale_factors["BN11"]["conv3x3"],bn11_scaleFactor3=scale_factors["BN11"]["conv1x1_2"],bn11_scaleFactorAdd=scale_factors["BN11"]["skip_add"],
+                           bn12_scaleFactor1=scale_factors["BN12"]["conv1x1_1"],bn12_scaleFactor2=scale_factors["BN12"]["conv3x3"],bn12_scaleFactor3=scale_factors["BN12"]["conv1x1_2"])
+
+
+# mobilenetBottleneckB(bn10_scaleFactor1=9,bn10_scaleFactor2=8,bn10_scaleFactor3=12,
+#                            bn11_scaleFactor1=9,bn11_scaleFactor2=scale_factors["BN11"]["conv3x3"],bn11_scaleFactor3=scale_factors["BN11"]["conv1x1_2"],bn11_scaleFactorAdd=scale_factors["BN11"]["skip_add"],
+#                            bn12_scaleFactor1=scale_factors["BN12"]["conv1x1_1"],bn12_scaleFactor2=scale_factors["BN12"]["conv3x3"],bn12_scaleFactor3=scale_factors["BN12"]["conv1x1_2"])

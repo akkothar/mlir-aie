@@ -46,7 +46,7 @@ const int32_t MAX = 255;
 
     int x, ki, c_div_8, c8;
     int32_t sum;
-    int sum_srs;
+    int32_t sum_srs;
     int wts_indx_0 = 0, wts_indx_1 = 0, wts_indx_2 = 0;
     int in_indx_0 = 0;
     int CHANNEL_REMAIN = output_channels / 8;
@@ -158,7 +158,7 @@ const int32_t MAX = 255;
 
     int x, ki,c_div_8,c8;
     int32_t sum;
-    int sum_srs;
+    int32_t sum_srs;
     int wts_indx_0 = 0, wts_indx_1 = 0, wts_indx_2 = 0;
     int in_indx_0 = 0;
     int32_t output_width=input_width/2;
@@ -258,7 +258,7 @@ const int32_t MAX = 255;
 
     int x, ki,c_div_8,c8;
     int32_t sum;
-    int sum_srs;
+    int32_t sum_srs;
     int wts_indx_0 = 0, wts_indx_1 = 0, wts_indx_2 = 0;
     int in_indx_0 = 0;
     // for (oc = (0+channel_offset)/8; oc < (output_channels+channel_offset)/8;

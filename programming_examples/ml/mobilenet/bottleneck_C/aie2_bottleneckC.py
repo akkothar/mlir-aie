@@ -1129,38 +1129,23 @@ def mobilenetV3_bn_13_14(start_row = 2, start_col = 0,
                     bn14_wts_memtile_layer3_put.set_memtile_repeat(RepeatChannels)
                     bn14_wts_memtile_layer3_get.set_memtile_repeat(RepeatChannels)
 
-                    # bn14_layer3_out = object_fifo("bn14_layer3_out", bn14_tile_layer3_get, MemTile21, 2, ty_bneck_14_layer3_out)
-                    # OF_outOFL2L3 = object_fifo("outOFL2L3", MemTile21, [ShimTile30], 2, ty_bneck_14_layer3_out)
-                    # object_fifo_link(bn14_layer3_out, [OF_outOFL2L3],[],[0])
-
                     act_out = object_fifo("act_out", bn14_tile_layer3_get, ShimTile30, 2, ty_bneck_14_layer3_out)
 
                                 # Set up compute tiles
                     rtp_bn13_tile_layer1_get = Buffer(bn13_tile_layer1_get, [16], T.i32(), "rtp_bn13_tile_layer1_get")
                     rtp_bn13_tile_layer3_get = Buffer(bn13_tile_layer3_get, [16], T.i32(), "rtp_bn13_tile_layer3_get")
 
-
-                #  _weightsInBN13_1,_weightsInBN13_2,_weightsInBN13_3, _weightsInBN13_4,_weightsInBN13_5,_weightsInBN14_1,_weightsInBN14_2,_weightsInBN14_3, _weightsInBN14_4,_weightsInBN14_5,
-                #  _rtpBN10_1,_rtpBN10_2,_rtpBN10_3,_rtpBN11_1,_rtpBN11_2,_rtpBN11_3,_rtpBN12_1,_rtpBN12_2,_rtpBN12_3,
-                #  _bn13_scaleFactor1,_bn13_scaleFactor2,_bn13_scaleFactor3,_bn13_scaleFactorAdd,
-                #   _bn14_scaleFactor1,_bn14_scaleFactor2,_bn14_scaleFactor3,_bn14_scaleFactorAdd,
-                #  _skipMemTile
-            
                     bottleneckCCore(bn13_tile_layer1_put,bn13_tile_layer1_get,bn13_tile_layer2,bn13_tile_layer3_put,bn13_tile_layer3_get,
                                     bn14_tile_layer1_put,bn14_tile_layer1_get,bn14_tile_layer2,bn14_tile_layer3_put,bn14_tile_layer3_get,
-                        bn13_wts_memtile_layer1_put,bn13_wts_memtile_layer1_get,bn13_wts_memtile_layer2,bn13_wts_memtile_layer3_put,bn13_wts_memtile_layer3_get,
-                        bn14_wts_memtile_layer1_put,bn14_wts_memtile_layer1_get,bn14_wts_memtile_layer2,bn14_wts_memtile_layer3_put,bn14_wts_memtile_layer3_get,
-                        rtp_bn13_tile_layer1_get,rtp_bn13_tile_layer3_get,
-                        bn13_scaleFactor1,bn13_scaleFactor2,bn13_scaleFactor3,bn13_scaleFactorAdd,
-                        bn14_scaleFactor1,bn14_scaleFactor2,bn14_scaleFactor3,bn14_scaleFactorAdd,
-                        MemTile21,act_in,act_out,bn13_skip )
+                                    bn13_wts_memtile_layer1_put,bn13_wts_memtile_layer1_get,bn13_wts_memtile_layer2,bn13_wts_memtile_layer3_put,bn13_wts_memtile_layer3_get,
+                                    bn14_wts_memtile_layer1_put,bn14_wts_memtile_layer1_get,bn14_wts_memtile_layer2,bn14_wts_memtile_layer3_put,bn14_wts_memtile_layer3_get,
+                                    rtp_bn13_tile_layer1_get,rtp_bn13_tile_layer3_get,bn13_scaleFactor1,bn13_scaleFactor2,bn13_scaleFactor3,bn13_scaleFactorAdd,
+                                    bn14_scaleFactor1,bn14_scaleFactor2,bn14_scaleFactor3,bn14_scaleFactorAdd,MemTile21,act_in,act_out,bn13_skip )
 
                     # # instruction stream generation
                     activationsInSize32b = (bneck_13_InW1 * bneck_13_InH1 * bneck_13_InC1) // 4
-
                     acitivationsOutSize32b = (bneck_13_InW1 * bneck_13_InH1 * bneck_14_OutC3) // 4
 
-                
                     bneck_13_totalWeightsSize32b_layer1 = (
                     bneck_13_InC1*bneck_13_OutC1
                     ) // 4

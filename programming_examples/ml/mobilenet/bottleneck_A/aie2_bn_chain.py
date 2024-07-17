@@ -601,7 +601,7 @@ def mobilenetV3_bn_0_1_2_3_4_5_6_7_8_9(tileColIndex = 0,tensorInW = 56, tensorIn
         activationsInSize32b = (tensorInW * tensorInH * tensorInC) // 4
         activationsOutSize32b = (tensorOutW * tensorOutH * tensorOutC) // 4
         activationsInL3_ty = MemRefType.get((activationsInSize32b,), int32_ty)
-        weightsInL3_ty = MemRefType.get((total_weights,), int32_ty)
+        weightsInL3_ty = MemRefType.get((total_weights//4,), int32_ty)
         activationsOutL3_ty = MemRefType.get((activationsOutSize32b,), int32_ty)
 
         memtile_01_wts32b=(memtile_01_wts)//4

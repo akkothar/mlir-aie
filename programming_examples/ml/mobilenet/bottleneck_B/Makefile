@@ -8,10 +8,13 @@
 srcdir := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
 include ${srcdir}/../../../makefile-common
-mlirFileName=aie2_bn10_bn11_bn12
+# mlirFileName=aie2_bn10_bn11
+
 mlirFileName = aie2_bottleneckB
 
-stride = 1
+# mlirFileName=aie2_bn10_bn11_bn12
+# mlirFileName=aie2_bn10
+
 VPATH := ${srcdir}/../../../../aie_kernels/aie2
 
 all: build/bn10_conv2dk1_fused_relu.o build/bn10_conv2dk3_dw.o build/bn10_conv2dk1_ui8.o\

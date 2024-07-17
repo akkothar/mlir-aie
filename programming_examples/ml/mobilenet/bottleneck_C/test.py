@@ -23,6 +23,14 @@ from brevitas.quant.fixed_point import (
     Uint8ActPerTensorFixedPoint,
 )
 import json
+def convert_to_numpy(array):
+    if isinstance(array, np.ndarray):
+        return array
+    elif isinstance(array, torch.Tensor):
+        return array.cpu().numpy()
+    else:
+        raise TypeError("Unsupported array type")
+from brevitas_examples.imagenet_classification.ptq.ptq_common import calibrate
 
 # Function to read scale factors from JSON file
 def read_scale_factors(file_path):
@@ -119,7 +127,7 @@ def main(opts):
     # ------------------------------------------------------
     dtype_in = np.dtype("int8")
     dtype_wts = np.dtype("int8")
-    dtype_out = np.dtype("uint8")
+    dtype_out = np.dtype("int8")
     print(wts_size)
 
     shape_total_wts = (wts_size, 1)
@@ -275,7 +283,7 @@ def main(opts):
             bn14_out = self.bn14_quant_relu2(bn14_out)
             bn14_out = self.bn14_quant_conv3(bn14_out)
 
-            bn14_out = self.quant_id_1(bn14_out)
+            bn14_out = self.bn13_add(bn14_out)
             bn14_out=bn13_out+bn14_out
 
             bn14_out = self.bn14_add(bn14_out)
@@ -284,6 +292,8 @@ def main(opts):
 
     quant_bottleneck_model = QuantBottleneck(in_planes=bneck_13_InC1, bn13_expand=bneck_13_OutC2,bn13_project=bneck_13_OutC3,bn14_expand=bneck_13_OutC2,bn14_project=bneck_13_OutC3)
     quant_bottleneck_model.eval()
+    calibrate([(torch.rand(1, 160, 7, 7), 1) for _ in range(5)], quant_bottleneck_model)
+
     
     q_bottleneck_out = quant_bottleneck_model(input)
     golden_output = q_bottleneck_out.int(float_datatype=True).data.numpy().astype(dtype_out)
@@ -329,10 +339,10 @@ def main(opts):
         block_14_relu_1 * block_14_weight_scale2 / block_14_relu_2
     )  
     block_14_combined_scale3 = -torch.log2(
-        block_14_relu_2 * block_14_weight_scale3/block_13_inp_scale1
+        block_14_relu_2 * block_14_weight_scale3/block_13_skip_add
     )   
     block_14_combined_scale_skip = -torch.log2(
-        block_13_inp_scale1 / block_14_skip_add
+        block_13_skip_add / block_14_skip_add
     )  # After addition | clip -128-->127
 
     print("********************BN13*******************************")
@@ -451,7 +461,10 @@ def main(opts):
     # Compare the AIE output and the golden reference
     # ------------------------------------------------------
     print("\nAvg NPU time: {}us.".format(int((npu_time_total / num_iter) / 1000)))
-
+    golden=convert_to_numpy(golden_output)
+    ofm_mem_fmt_out=convert_to_numpy(ofm_mem_fmt_out)
+    max_difference = np.max((golden)-(ofm_mem_fmt_out))
+    print("max_difference:",max_difference)
     if np.allclose(
         ofm_mem_fmt_out,
         golden_output,
