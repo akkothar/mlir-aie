@@ -739,7 +739,8 @@ void test_conv2dk1_i8_scalar(int8_t *input, int8_t *kernels, uint8_t *output,
         }
 
         // sum_srs=sum>>scale;
-        sum_srs = (sum + (1 << (applied_scale - 1))) >> applied_scale;
+        sum_srs = ((sum + (1 << (applied_scale - 1)) - 1 + ((sum >> applied_scale) & 1)) >> applied_scale);
+        // sum_srs = (sum + (1 << (applied_scale - 1))) >> applied_scale;
         sum_srs = (sum_srs > UMAX) ? UMAX : (sum_srs < 0) ? 0 : sum_srs;
         // sum_srs = input[(oc*input_width*8) + (x*8) + oc8];
         output[(oc * input_width * 8) + (x * 8) + oc8] = sum_srs;
@@ -766,7 +767,8 @@ void conv2dk1_i8_scalar(int8_t *input, int8_t *kernels, uint8_t *output,
 
   int x, ic, oc, ic8, oc8;
   // scale=-17;
-  int applied_scale=scale;
+  // int applied_scale=scale;
+  int remain ;
   for (oc = 0; oc < output_channels / 8; oc++) {
     for (x = 0; x < input_width; x++) { // col of output image
       for (oc8 = 0; oc8 < 8; oc8++) {
@@ -783,7 +785,17 @@ void conv2dk1_i8_scalar(int8_t *input, int8_t *kernels, uint8_t *output,
         }
 
         // sum_srs=sum>>scale;
-        sum_srs = (sum + (1 << (applied_scale - 1))) >> applied_scale;
+        /* sum is the mantissa */
+        // remain = sum & ((1<<(scale-1))-1); // is there any bit set after half? is it a tie
+        // if (remain > 0){ sum += 1<<(scale-1); } // not a tie case
+        // else { // tie case
+        //   if (sum & (1<<scale)) {sum += 1<<(scale-1);} // odd, round up
+        //   else {} // even, round down
+        // }
+        // sum_srs = (sum >> scale) << scale; // clip
+        sum_srs = ((sum + (1 << (scale - 1)) - 1 + ((sum >> scale) & 1)) >> scale);
+        
+        // sum_srs = (sum + (1 << (applied_scale - 1))) >> applied_scale;
         sum_srs = (sum_srs > UMAX) ? UMAX : (sum_srs < 0) ? 0 : sum_srs;
         // sum_srs = input[(oc*input_width*8) + (x*8) + oc8];
         output[(oc * input_width * 8) + (x * 8) + oc8] = sum_srs;
@@ -826,7 +838,8 @@ void conv2dk1_ui8_scalar(uint8_t *input, int8_t *kernels, uint8_t *output,
         }
 
         // sum_srs=sum>>scale;
-        sum_srs = (sum + (1 << (scale - 1))) >> scale;
+        // sum_srs = (sum + (1 << (scale - 1))) >> scale;
+        sum_srs = ((sum + (1 << (scale - 1)) - 1 + ((sum >> scale) & 1)) >> scale);
         sum_srs = (sum_srs > UMAX) ? UMAX : (sum_srs < 0) ? 0 : sum_srs;
         // sum_srs = input[(oc*input_width*8) + (x*8) + oc8];
         output[(oc * input_width * 8) + (x * 8) + oc8] = sum_srs;

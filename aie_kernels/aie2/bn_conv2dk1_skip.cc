@@ -460,7 +460,8 @@ void conv2dk1_skip_ui8_ui8_i8_scalar(
           }
         }
         // scale for convolution
-        sum_srs = (sum + (1 << (scaleT - 1))) >> scaleT;
+        // sum_srs = (sum + (1 << (scaleT - 1))) >> scaleT;
+        sum_srs = ((sum + (1 << (scaleT - 1)) - 1 + ((sum >> scaleT) & 1)) >> scaleT);
         sum_srs = (sum_srs > MAX)    ? MAX
                   : (sum_srs < -MIN) ? -MIN
                                      : sum_srs; // clip
@@ -469,8 +470,9 @@ void conv2dk1_skip_ui8_ui8_i8_scalar(
         skip_temp = skip[(oc * input_width * 8) + (x * 8) + oc8];
         skip_sum = sum_srs + skip_temp;
 
-        skip_sum_srs_final =
-            (skip_sum + (1 << (skip_scaleT - 1))) >> skip_scaleT;
+        // skip_sum_srs_final = ((skip_sum + (1 << (skip_scaleT - 1)) - 1 + ((skip_sum >> skip_scaleT) & 1)) >> skip_scaleT);
+        skip_sum_srs_final = (skip_sum + (1 << (skip_scaleT - 1))) >> skip_scaleT;
+        // skip_sum_srs_final = ((skip_sum + (1 << (skip_scaleT - 1)) - 1 + ((skip_sum >> skip_scaleT) & 1)) >> skip_scaleT);
         skip_sum_srs_final_out = (skip_sum_srs_final > MAX) ? MAX
                                  : (skip_sum_srs_final < -MIN)
                                      ? -MIN
@@ -526,7 +528,8 @@ void conv2dk1_skip_ui8_i8_i8_scalar(
           }
         }
         // scale for convolution
-        sum_srs = (sum + (1 << (scaleT - 1))) >> scaleT;
+      sum_srs = ((sum + (1 << (scaleT - 1)) - 1 + ((sum >> scaleT) & 1)) >> scaleT);
+        // sum_srs = (sum + (1 << (scaleT - 1))) >> scaleT;
         sum_srs = (sum_srs > MAX)    ? MAX
                   : (sum_srs < -MIN) ? -MIN
                                      : sum_srs; // clip
@@ -535,8 +538,8 @@ void conv2dk1_skip_ui8_i8_i8_scalar(
         skip_temp = skip[(oc * input_width * 8) + (x * 8) + oc8];
         skip_sum = sum_srs + skip_temp;
 
-        skip_sum_srs_final =
-            (skip_sum + (1 << (skip_scaleT - 1))) >> skip_scaleT;
+        // skip_sum_srs_final = ((skip_sum + (1 << (skip_scaleT - 1)) - 1 + ((skip_sum >> skip_scaleT) & 1)) >> skip_scaleT);
+        skip_sum_srs_final =(skip_sum + (1 << (skip_scaleT - 1))) >> skip_scaleT;
         skip_sum_srs_final_out = (skip_sum_srs_final > MAX) ? MAX
                                  : (skip_sum_srs_final < -MIN)
                                      ? -MIN

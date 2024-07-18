@@ -572,7 +572,8 @@ void conv2dk1_ui8_scalar(uint8_t *input, int8_t *kernels, int8_t *output,
         }
 
         // sum_srs=sum>>scale;
-        sum_srs = (sum + (1 << (scale - 1))) >> scale;
+        // sum_srs = (sum + (1 << (scale - 1))) >> scale;
+        sum_srs = ((sum + (1 << (scale - 1)) - 1 + ((sum >> scale) & 1)) >> scale);
         sum_srs = (sum_srs > SMAX) ? SMAX : (sum_srs < -SMIN) ? -SMIN : sum_srs;
         // sum_srs = input[(oc*input_width*8) + (x*8) + oc8];
         output[(oc * input_width * 8) + (x * 8) + oc8] = sum_srs;

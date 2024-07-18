@@ -159,6 +159,7 @@ const int32_t MAX = 255;
     int x, ki,c_div_8,c8;
     int32_t sum;
     int32_t sum_srs;
+    int remain;
     int wts_indx_0 = 0, wts_indx_1 = 0, wts_indx_2 = 0;
     int in_indx_0 = 0;
     int32_t output_width=input_width/2;
@@ -199,7 +200,14 @@ const int32_t MAX = 255;
                 if (check != bottom)
                   sum += line2[in_indx_0] * wts[wts_indx_2];
               }
-            sum_srs = (sum + (1 << (scale - 1))) >> scale;
+
+            // remain = sum & ((1<<(scale-1))-1); // is there any bit set, not a tie case
+            // if (remain > 0){ sum += 1<<(scale-1); }
+            // sum_srs = (sum >> scale) << scale;
+
+
+            // sum_srs = (sum + (1 << (scale - 1))) >> scale;
+            sum_srs = ((sum + (1 << (scale - 1)) - 1 + ((sum >> scale) & 1)) >> scale);
             sum_srs = (sum_srs > MAX) ? MAX : (sum_srs < 0) ? 0 : sum_srs;
             output[(c_div_8 * output_width * VECTOR_SIZE) + c8] = sum_srs;
 
@@ -234,7 +242,12 @@ const int32_t MAX = 255;
                 if (check != bottom)
                   sum += line2[in_indx_0] * wts[wts_indx_2];
               }
-            sum_srs = (sum + (1 << (scale - 1))) >> scale;
+
+            // remain = sum & ((1<<(scale-1))-1); // is there any bit set, not a tie case
+            // if (remain > 0){ sum += 1<<(scale-1); }
+            // sum_srs = (sum >> scale) << scale;
+            // sum_srs = (sum + (1 << (scale - 1))) >> scale;
+            sum_srs = ((sum + (1 << (scale - 1)) - 1 + ((sum >> scale) & 1)) >> scale);
             sum_srs = (sum_srs > MAX) ? MAX : (sum_srs < 0) ? 0 : sum_srs;
             output[(c_div_8 * output_width * VECTOR_SIZE) + x * VECTOR_SIZE + c8] = sum_srs;
             }
@@ -298,7 +311,10 @@ const int32_t MAX = 255;
                 if (check != bottom)
                   sum += line2[in_indx_0] * wts[wts_indx_2];
               }
-            sum_srs = (sum + (1 << (scale - 1))) >> scale;
+            // sum_srs = (sum + (1 << (scale - 1)) + ((sum >> scale) & 1) - 1) & ~((sum + (1 << (scale - 1))) & (1 << scale)); // ALI
+
+            sum_srs = ((sum + (1 << (scale - 1)) - 1 + ((sum >> scale) & 1)) >> scale);
+            // sum_srs = (sum + (1 << (scale - 1))) >> scale;
             sum_srs = (sum_srs > MAX) ? MAX : (sum_srs < 0) ? 0 : sum_srs;
             output[(c_div_8 * input_width * VECTOR_SIZE) + c8] = sum_srs;
 
@@ -334,7 +350,9 @@ const int32_t MAX = 255;
                 if (check != bottom)
                   sum += line2[in_indx_0] * wts[wts_indx_2];
               }
-            sum_srs = (sum + (1 << (scale - 1))) >> scale;
+            // sum_srs = (sum + (1 << (scale - 1)) + ((sum >> scale) & 1) - 1) & ~((sum + (1 << (scale - 1))) & (1 << scale)); // ALI
+            // sum_srs = (sum + (1 << (scale - 1))) >> scale;
+            sum_srs = ((sum + (1 << (scale - 1)) - 1 + ((sum >> scale) & 1)) >> scale);
             sum_srs = (sum_srs > MAX) ? MAX : (sum_srs < 0) ? 0 : sum_srs;
             output[(c_div_8 * input_width * VECTOR_SIZE) + (input_width-1) * VECTOR_SIZE + c8] = sum_srs;
 
@@ -369,7 +387,9 @@ const int32_t MAX = 255;
                 if (check != bottom)
                   sum += line2[in_indx_0] * wts[wts_indx_2];
               }
-            sum_srs = (sum + (1 << (scale - 1))) >> scale;
+            // sum_srs = (sum + (1 << (scale - 1)) + ((sum >> scale) & 1) - 1) & ~((sum + (1 << (scale - 1))) & (1 << scale)); // ALI
+            // sum_srs = (sum + (1 << (scale - 1))) >> scale;
+            sum_srs = ((sum + (1 << (scale - 1)) - 1 + ((sum >> scale) & 1)) >> scale);
             sum_srs = (sum_srs > MAX) ? MAX : (sum_srs < 0) ? 0 : sum_srs;
             output[(c_div_8 * input_width * VECTOR_SIZE) + x * VECTOR_SIZE + c8] = sum_srs;
             // output[oc * (input_width) +  x] = sum;

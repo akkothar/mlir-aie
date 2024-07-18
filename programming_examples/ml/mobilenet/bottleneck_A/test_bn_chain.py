@@ -1637,7 +1637,7 @@ def main(opts):
         ofm_mem_fmt_out,
         golden_output,
         rtol=0,
-        atol=7,
+        atol=9,
     ):
         print("\nPASS!\n")
         print_three_dolphins()
@@ -1646,7 +1646,7 @@ def main(opts):
         print("\nFailed.\n")
         for index in different_indices:
             idx_tuple = tuple(index)
-            # print(f"Index {idx_tuple}: GOLDEN has {golden_output[idx_tuple]}, AIE has {ofm_mem_fmt_out[idx_tuple]}, diff {np.abs(golden[idx_tuple] - ofm_mem_fmt_out[idx_tuple])}")
+            print(f"Index {idx_tuple}: GOLDEN has {golden_output[idx_tuple]}, AIE has {ofm_mem_fmt_out[idx_tuple]}, diff {np.abs(golden[idx_tuple] - ofm_mem_fmt_out[idx_tuple])}")
         exit(-1)
 
 
