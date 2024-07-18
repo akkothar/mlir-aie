@@ -105,7 +105,7 @@ def main(opts):
     if not os.path.exists(log_folder):
         os.makedirs(log_folder)
 
-    num_iter = 10
+    num_iter = 100
     npu_time_total = 0
     npu_time_min = 9999999
     npu_time_max = 0
