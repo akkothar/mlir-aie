@@ -161,6 +161,13 @@ def execute(app, ifm_mem_fmt, total_wts):
     app.run()
     return app.buffers[4].read()
 
+def write_wts(app, total_wts):
+    app.buffers[3].write(total_wts)  # wts's standard format OIYX | scalar OIYX
+
+def execute_inference(app, ifm_mem_fmt):
+    app.buffers[2].write(ifm_mem_fmt)  # input's standard format CYX | scalar YCX
+    app.run()
+    return app.buffers[4].read()
 
 def setup_aie_single(
     xclbin_path,

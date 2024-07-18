@@ -10,10 +10,17 @@ srcdir := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 include ${srcdir}/../../../makefile-common
 # mlirFileName=aie2_bn10_bn11
 
-mlirFileName = aie2_bottleneckB
+
 
 # mlirFileName=aie2_bn10_bn11_bn12
 # mlirFileName=aie2_bn10
+
+# mlirFileName = aie2_bottleneckB
+# testFileName=test
+
+mlirFileName = aie2_bottleneckB_wts_L2
+testFileName=test_wts_L2
+
 
 VPATH := ${srcdir}/../../../../aie_kernels/aie2
 
@@ -76,4 +83,4 @@ clean:
 		build/*.log aie_partition.json build/*.bin build/BOOT.BIN _x build/test.exe
 
 run_py: 
-	${powershell} python3 ${srcdir}/test.py -x build/final.xclbin -i build/insts.txt -k MLIR_AIE
+	${powershell} python3 ${srcdir}/${testFileName}.py -x build/final.xclbin -i build/insts.txt -k MLIR_AIE

@@ -13,7 +13,7 @@ from aie.utils.ml import DataShaper
 import time
 import os
 import numpy as np
-from aie.utils.xrt import setup_aie, extract_trace, write_out_trace, execute
+from aie.utils.xrt import setup_aie, extract_trace, write_out_trace, execute, write_wts, execute_inference
 import aie.utils.test as test_utils
 from dolphin import print_dolphin
 from brevitas.nn import QuantConv2d, QuantIdentity, QuantReLU
@@ -105,7 +105,7 @@ def main(opts):
     if not os.path.exists(log_folder):
         os.makedirs(log_folder)
 
-    num_iter = 4
+    num_iter = 10
     npu_time_total = 0
     npu_time_min = 9999999
     npu_time_max = 0
@@ -532,10 +532,11 @@ def main(opts):
     # Main run loop
     # ------------------------------------------------------
     
-
+    write_wts(app,total_wts)
     for i in range(num_iter):
         start = time.time_ns()
-        aie_output = execute(app, ifm_mem_fmt, total_wts) 
+        
+        aie_output = execute_inference(app, ifm_mem_fmt) 
         stop = time.time_ns()
         npu_time = stop - start
         npu_time_total = npu_time_total + npu_time
