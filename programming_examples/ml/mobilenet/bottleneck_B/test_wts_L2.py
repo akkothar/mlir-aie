@@ -393,7 +393,7 @@ def main(opts):
     calib_loader = torch.utils.data.DataLoader(dataset=val_sub, batch_size=32, shuffle=False)
     calibrate(calib_loader, quant_model)
     
-    calibrate([(torch.rand(1, bneck_10_InC1, bneck_10_InH1, bneck_10_InW1), 1) for _ in range(5)], quant_model)
+    # calibrate([(torch.rand(1, bneck_10_InC1, bneck_10_InH1, bneck_10_InW1), 1) for _ in range(5)], quant_model)
     quant_model.eval()
 
     for name, param in quant_model.named_parameters():
