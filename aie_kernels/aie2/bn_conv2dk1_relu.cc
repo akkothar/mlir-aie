@@ -708,52 +708,52 @@ void conv2dk1_i8_ui8_scalar_cascade_get(
 // #endif
 
 
-#if defined (BN12)
-#ifdef INT8_ACT
+// #if defined (BN12)
+// #ifdef INT8_ACT
 
-//*****************************************************************************
-// conv2d 1x1 - scalar
-// act: int8, wts: int8, out: uint8
-//*****************************************************************************
-void test_conv2dk1_i8_scalar(int8_t *input, int8_t *kernels, uint8_t *output,
-                        const int32_t input_width, const int32_t input_channels,
-                        const int32_t output_channels, const int scale) {
-  event0();
+// //*****************************************************************************
+// // conv2d 1x1 - scalar
+// // act: int8, wts: int8, out: uint8
+// //*****************************************************************************
+// void test_conv2dk1_i8_scalar(int8_t *input, int8_t *kernels, uint8_t *output,
+//                         const int32_t input_width, const int32_t input_channels,
+//                         const int32_t output_channels, const int scale) {
+//   event0();
 
-  int x, ic, oc, ic8, oc8;
-  // scale=-17;
-  int applied_scale=scale;
-  for (oc = 0; oc < output_channels / 8; oc++) {
-    for (x = 0; x < input_width; x++) { // col of output image
-      for (oc8 = 0; oc8 < 8; oc8++) {
-        int32_t sum = 0;
-        int32_t sum_srs = 0;
+//   int x, ic, oc, ic8, oc8;
+//   // scale=-17;
+//   int applied_scale=scale;
+//   for (oc = 0; oc < output_channels / 8; oc++) {
+//     for (x = 0; x < input_width; x++) { // col of output image
+//       for (oc8 = 0; oc8 < 8; oc8++) {
+//         int32_t sum = 0;
+//         int32_t sum_srs = 0;
 
-        for (ic = 0; ic < input_channels / 8; ic++) {
-          for (ic8 = 0; ic8 < 8; ic8++) {
-            int val = input[(ic * input_width * 8) + (x * 8) + ic8];
-            int k = kernels[(oc * (input_channels / 8) * 64) + (ic * 64) +
-                            (ic8 * 8) + oc8];
-            sum += val * k;
-          }
-        }
+//         for (ic = 0; ic < input_channels / 8; ic++) {
+//           for (ic8 = 0; ic8 < 8; ic8++) {
+//             int val = input[(ic * input_width * 8) + (x * 8) + ic8];
+//             int k = kernels[(oc * (input_channels / 8) * 64) + (ic * 64) +
+//                             (ic8 * 8) + oc8];
+//             sum += val * k;
+//           }
+//         }
 
-        // sum_srs=sum>>scale;
-        sum_srs = ((sum + (1 << (applied_scale - 1)) - 1 + ((sum >> applied_scale) & 1)) >> applied_scale);
-        // sum_srs = (sum + (1 << (applied_scale - 1))) >> applied_scale;
-        sum_srs = (sum_srs > UMAX) ? UMAX : (sum_srs < 0) ? 0 : sum_srs;
-        // sum_srs = input[(oc*input_width*8) + (x*8) + oc8];
-        output[(oc * input_width * 8) + (x * 8) + oc8] = sum_srs;
-      }
-    }
-  }
+//         // sum_srs=sum>>scale;
+//         sum_srs = ((sum + (1 << (applied_scale - 1)) - 1 + ((sum >> applied_scale) & 1)) >> applied_scale);
+//         // sum_srs = (sum + (1 << (applied_scale - 1))) >> applied_scale;
+//         sum_srs = (sum_srs > UMAX) ? UMAX : (sum_srs < 0) ? 0 : sum_srs;
+//         // sum_srs = input[(oc*input_width*8) + (x*8) + oc8];
+//         output[(oc * input_width * 8) + (x * 8) + oc8] = sum_srs;
+//       }
+//     }
+//   }
 
-  event1();
-}
-#endif
-#endif
+//   event1();
+// }
+// #endif
+// #endif
 
-#if defined (BN1)||(BN2) ||(BN3) ||(BN4) || (BN5) || (BN6) || (BN7) || (BN8) || (BN9) || (BN10) || (BN11) || (BN13) || (BN14) ||  (REGULAR)
+#if defined (BN1)||(BN2) ||(BN3) ||(BN4) || (BN5) || (BN6) || (BN7) || (BN8) || (BN9) || (BN10) || (BN11)|| (BN12) || (BN13) || (BN14) ||  (REGULAR)
 #ifdef INT8_ACT
 
 //*****************************************************************************
@@ -1139,7 +1139,7 @@ void bn12_conv2dk1_relu_i8_ui8(int8_t *input, int8_t *kernels, uint8_t *output,
                  const int32_t input_width, const int32_t input_channels,
                  const int32_t output_channels, const int scale) {
   
-  test_conv2dk1_i8_scalar(input, kernels, output, input_width, input_channels,
+  conv2dk1_i8_scalar(input, kernels, output, input_width, input_channels,
                      output_channels, scale);
 
                  }

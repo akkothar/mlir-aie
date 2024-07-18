@@ -311,7 +311,7 @@ const int32_t MAX = 255;
                 if (check != bottom)
                   sum += line2[in_indx_0] * wts[wts_indx_2];
               }
-            // sum_srs = (sum + (1 << (scale - 1)) + ((sum >> scale) & 1) - 1) & ~((sum + (1 << (scale - 1))) & (1 << scale)); // ALI
+
 
             sum_srs = ((sum + (1 << (scale - 1)) - 1 + ((sum >> scale) & 1)) >> scale);
             // sum_srs = (sum + (1 << (scale - 1))) >> scale;
@@ -350,7 +350,7 @@ const int32_t MAX = 255;
                 if (check != bottom)
                   sum += line2[in_indx_0] * wts[wts_indx_2];
               }
-            // sum_srs = (sum + (1 << (scale - 1)) + ((sum >> scale) & 1) - 1) & ~((sum + (1 << (scale - 1))) & (1 << scale)); // ALI
+
             // sum_srs = (sum + (1 << (scale - 1))) >> scale;
             sum_srs = ((sum + (1 << (scale - 1)) - 1 + ((sum >> scale) & 1)) >> scale);
             sum_srs = (sum_srs > MAX) ? MAX : (sum_srs < 0) ? 0 : sum_srs;
@@ -387,7 +387,7 @@ const int32_t MAX = 255;
                 if (check != bottom)
                   sum += line2[in_indx_0] * wts[wts_indx_2];
               }
-            // sum_srs = (sum + (1 << (scale - 1)) + ((sum >> scale) & 1) - 1) & ~((sum + (1 << (scale - 1))) & (1 << scale)); // ALI
+
             // sum_srs = (sum + (1 << (scale - 1))) >> scale;
             sum_srs = ((sum + (1 << (scale - 1)) - 1 + ((sum >> scale) & 1)) >> scale);
             sum_srs = (sum_srs > MAX) ? MAX : (sum_srs < 0) ? 0 : sum_srs;
