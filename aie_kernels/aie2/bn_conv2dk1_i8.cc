@@ -528,7 +528,8 @@ void conv2dk1_i8_ui8_scalar_cascade_get(
         
 
         sum=sum+partial_sum;
-        sum_srs = (sum + (1 << (scaleT - 1))) >> scaleT;
+        // sum_srs = (sum + (1 << (scaleT - 1))) >> scaleT;
+        sum_srs = (((sum) + (1 << (scaleT - 1)) - 1 + (((sum) >> scaleT) & 1)) >> scaleT);
         sum_srs = (sum_srs > UMAX)    ? UMAX
                   : (sum_srs < 0) ? 0
                                      : sum_srs; // clip

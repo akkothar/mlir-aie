@@ -13,13 +13,30 @@ include ${srcdir}/../../../makefile-common
 
 
 # mlirFileName=aie2_bn10_bn11_bn12
-# mlirFileName=aie2_bn10
+
 
 # mlirFileName = aie2_bottleneckB
 # testFileName=test
 
 mlirFileName = aie2_bottleneckB_wts_L2
 testFileName=test_wts_L2
+
+# mlirFileName=aie2_bn10
+# testFileName=test_bn10
+
+# mlirFileName=aie2_bn10_bn11_no_skip #make sure to update the kernel accordingly
+# testFileName=test_bn10_bn11_no_skip
+
+
+
+# mlirFileName = aie2_bottleneckB
+# testFileName=test
+mlirFileName=aie2_bn10_bn11
+testFileName=test_bn10_bn11
+
+mlirFileName=aie2_bn10_bn11_bn12
+testFileName=test_bn10_bn11_bn12
+mlirFileName = aie2_bottleneckB
 
 
 VPATH := ${srcdir}/../../../../aie_kernels/aie2

@@ -31,6 +31,8 @@ const int32_t MAX = 127;
 const int32_t UMAX = 255;
 const int32_t MAX_VALUES = 16;
 
+// #define INT8_MAX 127
+// #define INT8_MIN -128
 
 
 
@@ -425,7 +427,6 @@ void conv2dk1_skip_ui8_i8_i8_scalar_cascade_get(
 #endif
 
 #if defined (REGULAR) || (BN0) || (BN2) || (BN4) || (BN5) || (BN7) || (BN8) || (BN9)  || (BN11)
-#ifdef SCALAR
 #ifdef UNSIGNED_SKIP
 void conv2dk1_skip_ui8_ui8_i8_scalar(
     uint8_t *input0, int8_t *kernels, int8_t *output, uint8_t *skip, 
@@ -446,9 +447,10 @@ void conv2dk1_skip_ui8_ui8_i8_scalar(
         int32_t sum = 0;
         int32_t sum_srs = 0;
         int32_t skip_sum = 0;
+        int8_t sum_srs_out = 0;
         int32_t skip_sum_srs_final = 0;
         int32_t skip_sum_srs_final_out = 0;
-        int32_t skip_temp = 0;
+        uint8_t skip_temp = 0;
         for (ic = 0; ic < input_channels / 8; ic++) {
           for (ic8 = 0; ic8 < 8; ic8++) {
             // int val = input0[ic * input_width + x];
@@ -462,21 +464,16 @@ void conv2dk1_skip_ui8_ui8_i8_scalar(
         // scale for convolution
         // sum_srs = (sum + (1 << (scaleT - 1))) >> scaleT;
         sum_srs = ((sum + (1 << (scaleT - 1)) - 1 + ((sum >> scaleT) & 1)) >> scaleT);
-        sum_srs = (sum_srs > MAX)    ? MAX
-                  : (sum_srs < -MIN) ? -MIN
-                                     : sum_srs; // clip
+        // sum_srs = (sum + (1 << (scaleT - 1))) >> scaleT;
+        sum_srs_out = (sum_srs > INT8_MAX) ? INT8_MAX : (sum_srs < INT8_MIN) ? INT8_MIN : sum_srs;
         // //clip
 
         skip_temp = skip[(oc * input_width * 8) + (x * 8) + oc8];
-        skip_sum = sum_srs + skip_temp;
+        skip_sum = sum_srs_out + skip_temp;
 
-        // skip_sum_srs_final = ((skip_sum + (1 << (skip_scaleT - 1)) - 1 + ((skip_sum >> skip_scaleT) & 1)) >> skip_scaleT);
-        skip_sum_srs_final = (skip_sum + (1 << (skip_scaleT - 1))) >> skip_scaleT;
-        // skip_sum_srs_final = ((skip_sum + (1 << (skip_scaleT - 1)) - 1 + ((skip_sum >> skip_scaleT) & 1)) >> skip_scaleT);
-        skip_sum_srs_final_out = (skip_sum_srs_final > MAX) ? MAX
-                                 : (skip_sum_srs_final < -MIN)
-                                     ? -MIN
-                                     : skip_sum_srs_final; // clip
+        skip_sum_srs_final = ((skip_sum + (1 << (skip_scaleT - 1)) - 1 + ((skip_sum >> skip_scaleT) & 1)) >> skip_scaleT); 
+        // skip_sum_srs_final = (skip_sum + (1 << (skip_scaleT - 1))) >> skip_scaleT;
+        skip_sum_srs_final_out = (skip_sum_srs_final > INT8_MAX) ? INT8_MAX : (skip_sum_srs_final < INT8_MIN) ? INT8_MIN : skip_sum_srs_final;
 
         // output[oc * input_width + x] = skip_sum_srs_final_out;
         output[(oc * input_width * 8) + (x * 8) + oc8] = skip_sum_srs_final_out;
@@ -514,9 +511,11 @@ void conv2dk1_skip_ui8_i8_i8_scalar(
         int32_t sum = 0;
         int32_t sum_srs = 0;
         int32_t skip_sum = 0;
+        int8_t sum_srs_out = 0;
+        int8_t skip_temp = 0;
         int32_t skip_sum_srs_final = 0;
-        int32_t skip_sum_srs_final_out = 0;
-        int32_t skip_temp = 0;
+        int8_t skip_sum_srs_final_out = 0;
+        
         for (ic = 0; ic < input_channels / 8; ic++) {
           for (ic8 = 0; ic8 < 8; ic8++) {
             // int val = input0[ic * input_width + x];
@@ -530,26 +529,20 @@ void conv2dk1_skip_ui8_i8_i8_scalar(
         // scale for convolution
       sum_srs = ((sum + (1 << (scaleT - 1)) - 1 + ((sum >> scaleT) & 1)) >> scaleT);
         // sum_srs = (sum + (1 << (scaleT - 1))) >> scaleT;
-        sum_srs = (sum_srs > MAX)    ? MAX
-                  : (sum_srs < -MIN) ? -MIN
-                                     : sum_srs; // clip
+      sum_srs_out = (sum_srs > INT8_MAX) ? INT8_MAX : (sum_srs < INT8_MIN) ? INT8_MIN : sum_srs;
+
         // //clip
 
         skip_temp = skip[(oc * input_width * 8) + (x * 8) + oc8];
-        skip_sum = sum_srs + skip_temp;
+        skip_sum = sum_srs_out + skip_temp;
 
-        // skip_sum_srs_final = ((skip_sum + (1 << (skip_scaleT - 1)) - 1 + ((skip_sum >> skip_scaleT) & 1)) >> skip_scaleT);
-        skip_sum_srs_final =(skip_sum + (1 << (skip_scaleT - 1))) >> skip_scaleT;
-        skip_sum_srs_final_out = (skip_sum_srs_final > MAX) ? MAX
-                                 : (skip_sum_srs_final < -MIN)
-                                     ? -MIN
-                                     : skip_sum_srs_final; // clip
+        skip_sum_srs_final = ((skip_sum + (1 << (skip_scaleT - 1)) - 1 + ((skip_sum >> skip_scaleT) & 1)) >> skip_scaleT); 
+        // skip_sum_srs_final =(skip_sum + (1 << (skip_scaleT - 1))) >> skip_scaleT;
+        skip_sum_srs_final_out = (skip_sum_srs_final > INT8_MAX) ? INT8_MAX : (skip_sum_srs_final < INT8_MIN) ? INT8_MIN : skip_sum_srs_final;
 
-        // output[oc * input_width + x] = skip_sum_srs_final_out;
+
         output[(oc * input_width * 8) + (x * 8) + oc8] = skip_sum_srs_final_out;
 
-        // output[oc * input_width + x] = sum;
-        // output[oc * input_width + x] = sum+skip[oc * input_width + x];
       }
     }
   }
@@ -558,8 +551,6 @@ void conv2dk1_skip_ui8_i8_i8_scalar(
 }
 
 #endif
-#else 
-#endif // Vector
 #endif // 
 //*****************************************************************************
 // conv2d 1x1 skip wrappers

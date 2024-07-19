@@ -70,7 +70,8 @@ const int32_t MAX = 255;
                 if (check != bottom)
                     sum += line2[in_indx_0] * wts[wts_indx_2];
             }
-            sum_srs = (sum + (1 << (scale - 1))) >> scale;
+            // sum_srs = (sum + (1 << (scale - 1))) >> scale;
+            sum_srs = (((sum) + (1 << (scale - 1)) - 1 + (((sum) >> scale) & 1)) >> scale);
             sum_srs = (sum_srs > MAX) ? MAX : (sum_srs < 0) ? 0 : sum_srs;
 
             // Assign to output1 or output2
@@ -95,7 +96,8 @@ const int32_t MAX = 255;
                 if (check != bottom)
                     sum += line2[in_indx_0] * wts[wts_indx_2];
             }
-            sum_srs = (sum + (1 << (scale - 1))) >> scale;
+            // sum_srs = (sum + (1 << (scale - 1))) >> scale;
+            sum_srs = (((sum) + (1 << (scale - 1)) - 1 + (((sum) >> scale) & 1)) >> scale);
             sum_srs = (sum_srs > MAX) ? MAX : (sum_srs < 0) ? 0 : sum_srs;
 
             // Assign to output1 or output2
@@ -121,7 +123,8 @@ const int32_t MAX = 255;
                     if (check != bottom)
                         sum += line2[in_indx_0] * wts[wts_indx_2];
                 }
-                sum_srs = (sum + (1 << (scale - 1))) >> scale;
+                // sum_srs = (sum + (1 << (scale - 1))) >> scale;
+                sum_srs = (((sum) + (1 << (scale - 1)) - 1 + (((sum) >> scale) & 1)) >> scale);
                 sum_srs = (sum_srs > MAX) ? MAX : (sum_srs < 0) ? 0 : sum_srs;
 
                 // Assign to output1 or output2

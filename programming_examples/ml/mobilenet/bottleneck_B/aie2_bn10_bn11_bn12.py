@@ -45,6 +45,10 @@ bneck_12_InW2 = 7
 bneck_12_InH2 = 7
 bneck_12_OutC3 = 80
 
+OutC=bneck_12_OutC3
+OutH=bneck_12_InH2
+OutW=bneck_12_InW2
+
 
 if len(sys.argv) == 3:
     width = int(sys.argv[1])
@@ -170,7 +174,7 @@ def mobilenetBottleneckB(bn10_scaleFactor1=10,bn10_scaleFactor2=7,bn10_scaleFact
             # ************************ bneck11 ************************
             # OF_bneck_10_layer3_bn_11_layer1 = object_fifo("OF_bneck_10_layer3_bn_11_layer1", ComputeTile04, [ComputeTile05], 2, ty_bneck_11_layer1_in)
        
-            OF_bneck_10_layer3_bn_11_layer1 = object_fifo("OF_bneck_10_layer3_bn_11_layer1", ComputeTile04, [ComputeTile05,MemTile11], [2, 2, 4], ty_bneck_11_layer1_in)
+            OF_bneck_10_layer3_bn_11_layer1 = object_fifo("OF_bneck_10_layer3_bn_11_layer1", ComputeTile04, [ComputeTile05,MemTile11], [2, 2, 6], ty_bneck_11_layer1_in)
             OF_bneck_11_skip = object_fifo("OF_bneck_11_skip", MemTile11, [ComputeTile14], 2,ty_bneck_11_layer1_in)
             object_fifo_link(OF_bneck_10_layer3_bn_11_layer1,OF_bneck_11_skip )
 
@@ -696,7 +700,7 @@ def mobilenetBottleneckB(bn10_scaleFactor1=10,bn10_scaleFactor2=7,bn10_scaleFact
             
             # # instruction stream generation
             activationsInSize32b = (bneck_10_InW1 * bneck_10_InH1 * bneck_10_InC1) // 4
-            acitivationsOutSize32b = (bneck_12_InW2 * bneck_12_InH2 * bneck_12_OutC3) // 4
+            acitivationsOutSize32b = (OutW * OutH * OutC) // 4
             # acitivationsOutSize32b = (bneck_10_InW1 * bneck_10_InH1 * bneck_12_OutC1) // 4
 
             bn10_totalWeightsSize32b = (

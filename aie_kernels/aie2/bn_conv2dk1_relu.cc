@@ -229,7 +229,8 @@ void conv2dk1_i8_ui8_scalar_partial_width_get(int8_t *input, int8_t *kernels, ui
                     int cascade_sum = 0;
                     sum = ext_elem(v16vec_partial[pixel], oc8);
                     cascade_sum=ext_elem(v16vec_cas[pixel], oc8);
-                    sum_srs = ((sum+cascade_sum) + (1 << (scale - 1))) >> scale;
+                    // sum_srs = ((sum+cascade_sum) + (1 << (scale - 1))) >> scale;
+                    sum_srs = (((sum+cascade_sum) + (1 << (scale - 1)) - 1 + (((sum+cascade_sum) >> scale) & 1)) >> scale);
                     sum_srs= (sum_srs > UMAX) ? UMAX : (sum_srs< 0) ? 0 : sum_srs;
                     output[(oc * input_width * 8) + (pixel * 8) + oc8] = sum_srs;
             }
