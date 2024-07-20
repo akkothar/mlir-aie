@@ -98,7 +98,7 @@ build/fused_bn0_bn1.a: build/bn0_conv2dk3_dw_stride1.o build/bn0_conv2dk1_skipui
 # bn2
 build/bn2_conv2dk1_fused_relu.o: bn_conv2dk1_relu.cc
 	mkdir -p ${@D}
-	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DSCALAR -DBN2 -DINT8_ACT -c $< -o ${@F}
+	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DBN2 -DINT8_ACT -c $< -o ${@F}
 
 build/bn2_conv2dk3_dw_stride1.o: bn_conv2dk3_dw.cc
 	mkdir -p ${@D}

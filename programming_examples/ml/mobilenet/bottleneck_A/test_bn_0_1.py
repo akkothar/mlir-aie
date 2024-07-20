@@ -246,8 +246,8 @@ def main(opts):
     from torchvision import transforms
     # Define the image preprocessing pipeline
     transform = transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
+        transforms.Resize(128),
+        transforms.CenterCrop(112),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ExpandChannels(target_channels=16)  # Expand to 80 channels
@@ -271,7 +271,7 @@ def main(opts):
     calib_loader = torch.utils.data.DataLoader(dataset=val_sub, batch_size=32, shuffle=False)
     calibrate(calib_loader, quant_bottleneck_model)
     
-    calibrate([(torch.rand(1, bneck_0_InC2, bneck_0_InH2, bneck_0_InW2), 1) for _ in range(5)], quant_bottleneck_model)
+    # calibrate([(torch.rand(1, bneck_0_InC2, bneck_0_InH2, bneck_0_InW2), 1) for _ in range(5)], quant_bottleneck_model)
     
     quant_bottleneck_model.eval()
     

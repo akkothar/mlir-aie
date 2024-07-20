@@ -24,7 +24,7 @@ file_path = 'scale_factors.json'
 scale_factors = read_scale_factors(file_path)
 
 def mobilenetV3_bn_0_1_2_3_4_5_6_7_8_9(tileColIndex = 0,tensorInW = 56, tensorInH = 56, tensorInC = 16, 
-                                bn0_scaleFactor2 = 8, bn0_scaleFactor3 = 9,  bn0_scaleFactorAdd = 1,
+                                bn0_scaleFactor2 = 9, bn0_scaleFactor3 = 8,  bn0_scaleFactorAdd = 2,
                        bn1_depthWiseStride = 2, bn1_depthWiseChannels = 64, bn1_withSkip = False, bn1_tensorOutC = 24, bn1_scaleFactor1 = 8, bn1_scaleFactor2 = 8, bn1_scaleFactor3 = 11,  bn1_scaleFactorAdd = 0,
                        bn2_depthWiseStride = 1, bn2_depthWiseChannels = 72, bn2_withSkip = True, bn2_tensorOutC = 24, bn2_scaleFactor1 = 8, bn2_scaleFactor2 = 8, bn2_scaleFactor3 = 11,  bn2_scaleFactorAdd = 0,
                        bn3_depthWiseStride = 2, bn3_depthWiseChannels = 72, bn3_withSkip = False, bn3_tensorOutC = 40, bn3_scaleFactor1 = 8, bn3_scaleFactor2 = 8, bn3_scaleFactor3 = 11,  bn3_scaleFactorAdd = 0,
@@ -177,13 +177,15 @@ def mobilenetV3_bn_0_1_2_3_4_5_6_7_8_9(tileColIndex = 0,tensorInW = 56, tensorIn
     tensorL9_3InH = tensorL9_2InH // bn9_depthWiseStride
     tensorL9_3OutC = bn9_tensorOutC
     # final output
-    tensorOutW = tensorL3_3InW
-    tensorOutH = tensorL3_3InH
-    tensorOutC = tensorL3_3OutC
+    
 
     tensorOutW = tensorL9_3InW
     tensorOutH = tensorL9_3InH
     tensorOutC = tensorL9_3OutC
+    
+    tensorOutW = tensorL1_3InW
+    tensorOutH = tensorL1_3InH
+    tensorOutC = tensorL1_3OutC
 
     @device(AIEDevice.npu1_3col)
     def device_body():
@@ -264,7 +266,7 @@ def mobilenetV3_bn_0_1_2_3_4_5_6_7_8_9(tileColIndex = 0,tensorInW = 56, tensorIn
         # AIE-array data movement with object fifos
         
         # Input
-        act_in = object_fifo("act_in", ShimTile00, ComputeTile03, [2, 3], tensorLayerIn_ty)
+        act_in = object_fifo("act_in", ShimTile00, ComputeTile03, [3, 3], tensorLayerIn_ty)
 
         # wts
         wts_OF_01_L3L2 = object_fifo("wts_OF_01_L3L2", ShimTile00, MemTile01, 1, memtile_01_wts_ty)
@@ -328,274 +330,275 @@ def mobilenetV3_bn_0_1_2_3_4_5_6_7_8_9(tileColIndex = 0,tensorInW = 56, tensorIn
         bn1_tensorLayer1_3Out_ty = MemRefType.get((tensorL1_3InW, 1, tensorL1_3OutC),int8_ty)
 
         # between compute tiles
-        act_bn01_bn2 = object_fifo("act_bn01_bn2", ComputeTile03, ComputeTile04, [3, 2], bn1_tensorLayer1_3Out_ty)
-
-        bottleneckAFused("bn01", ComputeTile03, act_in, bn0_1_wts_OF_L3L1, act_bn01_bn2, rtpComputeTile03, bn01_objectArchiveName,
+        # act_bn01_bn2 = object_fifo("act_bn01_bn2", ComputeTile03, ComputeTile04, [3, 2], bn1_tensorLayer1_3Out_ty)
+        act_out = object_fifo("act_out", ComputeTile03, ShimTile10, 1, bn1_tensorLayer1_3Out_ty)
+        bottleneckAFused("bn01", ComputeTile03, act_in, bn0_1_wts_OF_L3L1, act_out, rtpComputeTile03, bn01_objectArchiveName,
                          bn0_conv2dk3_dw_stride1_relu_ui8_ui8, bn0_conv2dk1_skip_ui8_ui8_i8, bn1_conv2dk1_relu_i8_ui8, bn1_conv2dk3_dw_stride2_relu_ui8_ui8, bn1_conv2dk1_ui8_i8,
                          bn0_tensorLayer0_2Out_ty, bn0_tensorLayer0_3Out_ty,bn1_tensorLayer1_1Out_ty,bn1_tensorLayer1_2Out_ty, tensorL0_2InW, tensorL0_2InH, tensorL0_2InC,  bn1_depthWiseStride, bn1_depthWiseChannels, tensorL1_3OutC)
 
-        # # # ******************************************************************bn2******************************************************************
-         # temporary types for tensor to enable intial test
-        bn2_tensorLayer1In_ty = MemRefType.get((tensorL2_1InW, 1, tensorL2_1InC), int8_ty)
-        bn2_weightsLayer1_ty = MemRefType.get((1 * 1 * tensorL2_1InC * tensorL2_2InC,), int8_ty)
-        bn2_tensorLayer1Out_ty = MemRefType.get((tensorL2_2InW, 1, tensorL2_2InC), uint8_ty)
+        # # # # # ******************************************************************bn2******************************************************************
+        # #  # temporary types for tensor to enable intial test
+        # bn2_tensorLayer1In_ty = MemRefType.get((tensorL2_1InW, 1, tensorL2_1InC), int8_ty)
+        # bn2_weightsLayer1_ty = MemRefType.get((1 * 1 * tensorL2_1InC * tensorL2_2InC,), int8_ty)
+        # bn2_tensorLayer1Out_ty = MemRefType.get((tensorL2_2InW, 1, tensorL2_2InC), uint8_ty)
     
-        bn2_tensorLayer2In_ty = bn2_tensorLayer1Out_ty
-        bn2_weightsLayer2_ty = MemRefType.get((3 * 3 * tensorL2_3InC * 1,), int8_ty)
-        bn2_tensorLayer2Out_ty = MemRefType.get((tensorL2_3InW, 1, tensorL2_3InC), uint8_ty)
+        # bn2_tensorLayer2In_ty = bn2_tensorLayer1Out_ty
+        # bn2_weightsLayer2_ty = MemRefType.get((3 * 3 * tensorL2_3InC * 1,), int8_ty)
+        # bn2_tensorLayer2Out_ty = MemRefType.get((tensorL2_3InW, 1, tensorL2_3InC), uint8_ty)
 
-        bn2_tensorLayer3In_ty = bn2_tensorLayer2Out_ty
-        bn2_weightsLayer3_ty = MemRefType.get((1 * 1 * tensorL2_3InC * tensorL2_3OutC,), int8_ty)
-        bn2_tensorLayer3Out_ty = MemRefType.get((tensorL2_3InW, 1, tensorL2_3OutC),int8_ty)
+        # bn2_tensorLayer3In_ty = bn2_tensorLayer2Out_ty
+        # bn2_weightsLayer3_ty = MemRefType.get((1 * 1 * tensorL2_3InC * tensorL2_3OutC,), int8_ty)
+        # bn2_tensorLayer3Out_ty = MemRefType.get((tensorL2_3InW, 1, tensorL2_3OutC),int8_ty)
         
-        # AIE Core Function declarations
-        bn2_conv2dk1_relu_i8_ui8 = external_func("bn2_conv2dk1_relu_i8_ui8",inputs=[bn2_tensorLayer1In_ty, bn2_weightsLayer1_ty, bn2_tensorLayer1Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn2_conv2dk3_dw_stride2_relu_ui8_ui8 = external_func("bn2_conv2dk3_dw_stride2_relu_ui8_ui8",inputs=[bn2_tensorLayer2In_ty,bn2_tensorLayer2In_ty,bn2_tensorLayer2In_ty, bn2_weightsLayer2_ty, bn2_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn2_conv2dk3_dw_stride1_relu_ui8_ui8 = external_func("bn2_conv2dk3_dw_stride1_relu_ui8_ui8",inputs=[bn2_tensorLayer2In_ty,bn2_tensorLayer2In_ty,bn2_tensorLayer2In_ty, bn2_weightsLayer2_ty, bn2_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn2_conv2dk1_skip_ui8_i8_i8 = external_func("bn2_conv2dk1_skip_ui8_i8_i8",inputs=[bn2_tensorLayer3In_ty, bn2_weightsLayer3_ty, bn2_tensorLayer3Out_ty, bn2_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # # AIE Core Function declarations
+        # bn2_conv2dk1_relu_i8_ui8 = external_func("bn2_conv2dk1_relu_i8_ui8",inputs=[bn2_tensorLayer1In_ty, bn2_weightsLayer1_ty, bn2_tensorLayer1Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn2_conv2dk3_dw_stride2_relu_ui8_ui8 = external_func("bn2_conv2dk3_dw_stride2_relu_ui8_ui8",inputs=[bn2_tensorLayer2In_ty,bn2_tensorLayer2In_ty,bn2_tensorLayer2In_ty, bn2_weightsLayer2_ty, bn2_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn2_conv2dk3_dw_stride1_relu_ui8_ui8 = external_func("bn2_conv2dk3_dw_stride1_relu_ui8_ui8",inputs=[bn2_tensorLayer2In_ty,bn2_tensorLayer2In_ty,bn2_tensorLayer2In_ty, bn2_weightsLayer2_ty, bn2_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn2_conv2dk1_skip_ui8_i8_i8 = external_func("bn2_conv2dk1_skip_ui8_i8_i8",inputs=[bn2_tensorLayer3In_ty, bn2_weightsLayer3_ty, bn2_tensorLayer3Out_ty, bn2_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
         
-        bn2_conv2dk1_ui8_i8 = external_func("bn2_conv2dk1_ui8_i8",inputs=[bn2_tensorLayer3In_ty, bn2_weightsLayer3_ty, bn2_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn2_conv2dk1_ui8_i8 = external_func("bn2_conv2dk1_ui8_i8",inputs=[bn2_tensorLayer3In_ty, bn2_weightsLayer3_ty, bn2_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
 
-        # Compute tile 
-        bn2_objectArchiveName = "bn2_combined_con2dk1fusedrelu_conv2dk3dwstride%s_conv2dk1%s.a" % (bn2_depthWiseStride, "skip" if (bn2_withSkip) else "")
-        bn2_tensorLayer1Out_ty = MemRefType.get((tensorL2_2InW, 1, tensorL2_2InC),uint8_ty)
-        bn2_tensorLayer2Out_ty = MemRefType.get((tensorL2_3InW, 1, tensorL2_3InC),uint8_ty)
-        bn2_tensorLayer3Out_ty = MemRefType.get((tensorL2_3InW, 1, tensorL2_3OutC),int8_ty)        
-
-       
-
-        # between compute tiles
-        act_bn2_bn3 = object_fifo("act_bn2_bn3", ComputeTile04, ComputeTile05, [3, 2], bn2_tensorLayer3Out_ty)
-
-        bottleneckACore("bn2", ComputeTile04, act_bn01_bn2, bn2_wts_OF_L3L1, act_bn2_bn3, rtpComputeTile04, bn2_objectArchiveName,
-                        bn2_conv2dk1_relu_i8_ui8, bn2_conv2dk3_dw_stride1_relu_ui8_ui8, bn2_conv2dk3_dw_stride2_relu_ui8_ui8, bn2_conv2dk1_ui8_i8, bn2_conv2dk1_skip_ui8_i8_i8,
-                        bn2_tensorLayer1Out_ty, bn2_tensorLayer2Out_ty, tensorL2_1InW, tensorL2_1InH, tensorL2_1InC,  bn2_depthWiseStride, bn2_depthWiseChannels, tensorL2_3OutC, bn2_withSkip,bn2_scaleFactor1, bn2_scaleFactor2, bn2_scaleFactor3,  bn2_scaleFactorAdd)
-
-
-        # # # # ******************************************************************bn3******************************************************************
-        #  # temporary types for tensor to enable intial test
-        bn3_tensorLayer1In_ty = MemRefType.get((tensorL3_1InW, 1, tensorL3_1InC), int8_ty)
-        bn3_weightsLayer1_ty = MemRefType.get((1 * 1 * tensorL3_1InC * tensorL3_2InC,), int8_ty)
-        bn3_tensorLayer1Out_ty = MemRefType.get((tensorL3_2InW, 1, tensorL3_2InC), uint8_ty)
-        
-        bn3_tensorLayer2In_ty = bn3_tensorLayer1Out_ty
-        bn3_weightsLayer2_ty = MemRefType.get((3 * 3 * tensorL3_3InC * 1,), int8_ty)
-        bn3_tensorLayer2Out_ty = MemRefType.get((tensorL3_3InW, 1, tensorL3_3InC), uint8_ty)
-
-        bn3_tensorLayer3In_ty = bn3_tensorLayer2Out_ty
-        bn3_weightsLayer3_ty = MemRefType.get((1 * 1 * tensorL3_3InC * tensorL3_3OutC,), int8_ty)
-        bn3_tensorLayer3Out_ty = MemRefType.get((tensorL3_3InW, 1, tensorL3_3OutC),int8_ty)
-        
-        # AIE Core Function declarations
-        bn3_conv2dk1_relu_i8_ui8 = external_func("bn3_conv2dk1_relu_i8_ui8",inputs=[bn3_tensorLayer1In_ty, bn3_weightsLayer1_ty, bn3_tensorLayer1Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn3_conv2dk3_dw_stride2_relu_ui8_ui8 = external_func("bn3_conv2dk3_dw_stride2_relu_ui8_ui8",inputs=[bn3_tensorLayer2In_ty,bn3_tensorLayer2In_ty,bn3_tensorLayer2In_ty, bn3_weightsLayer2_ty, bn3_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn3_conv2dk3_dw_stride1_relu_ui8_ui8 = external_func("bn3_conv2dk3_dw_stride1_relu_ui8_ui8",inputs=[bn3_tensorLayer2In_ty,bn3_tensorLayer2In_ty,bn3_tensorLayer2In_ty, bn3_weightsLayer2_ty, bn3_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn3_conv2dk1_skip_ui8_i8_i8 = external_func("bn3_conv2dk1_skip_ui8_i8_i8",inputs=[bn3_tensorLayer3In_ty, bn3_weightsLayer3_ty, bn3_tensorLayer3Out_ty, bn3_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn3_conv2dk1_ui8_i8 = external_func("bn3_conv2dk1_ui8_i8",inputs=[bn3_tensorLayer3In_ty, bn3_weightsLayer3_ty, bn3_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-
-        # Compute tile 
-        bn3_objectArchiveName = "bn3_combined_con2dk1fusedrelu_conv2dk3dwstride%s_conv2dk1%s.a" % (bn3_depthWiseStride, "skip" if (bn3_withSkip) else "")
-        bn3_tensorLayer1Out_ty = MemRefType.get((tensorL3_2InW, 1, tensorL3_2InC),uint8_ty)
-        bn3_tensorLayer2Out_ty = MemRefType.get((tensorL3_3InW, 1, tensorL3_3InC),uint8_ty)
-        bn3_tensorLayer3Out_ty = MemRefType.get((tensorL3_3InW, 1, tensorL3_3OutC),int8_ty)        
-       
-
-        # # # between compute tiles
-        act_bn3_bn4 = object_fifo("act_bn3_bn4", ComputeTile05, ComputeTile15, [3, 2], bn3_tensorLayer3Out_ty)
-
-        bottleneckACore("bn3", ComputeTile05, act_bn2_bn3, bn3_wts_OF_L3L1, act_bn3_bn4, rtpComputeTile05, bn3_objectArchiveName,
-                         bn3_conv2dk1_relu_i8_ui8, bn3_conv2dk3_dw_stride1_relu_ui8_ui8, bn3_conv2dk3_dw_stride2_relu_ui8_ui8, bn3_conv2dk1_ui8_i8, bn3_conv2dk1_skip_ui8_i8_i8,
-                           bn3_tensorLayer1Out_ty, bn3_tensorLayer2Out_ty, tensorL3_1InW, tensorL3_1InH, tensorL3_1InC, bn3_depthWiseStride, bn3_depthWiseChannels, tensorL3_3OutC, bn3_withSkip,bn3_scaleFactor1, bn3_scaleFactor2, bn3_scaleFactor3,  bn3_scaleFactorAdd)
-
-        # # # # ******************************************************************bn4******************************************************************
-
-         # temporary types for tensor to enable intial test
-        bn4_tensorLayer1In_ty = MemRefType.get((tensorL4_1InW, 1, tensorL4_1InC), int8_ty)
-        bn4_weightsLayer1_ty = MemRefType.get((1 * 1 * tensorL4_1InC * tensorL4_2InC,), int8_ty)
-        bn4_tensorLayer1Out_ty = MemRefType.get((tensorL4_2InW, 1, tensorL4_2InC), uint8_ty)
-    
-        bn4_tensorLayer2In_ty = bn4_tensorLayer1Out_ty
-        bn4_weightsLayer2_ty = MemRefType.get((3 * 3 * tensorL4_3InC * 1,), int8_ty)
-        bn4_tensorLayer2Out_ty = MemRefType.get((tensorL4_3InW, 1, tensorL4_3InC), uint8_ty)
-
-        bn4_tensorLayer3In_ty = bn4_tensorLayer2Out_ty
-        bn4_weightsLayer3_ty = MemRefType.get((1 * 1 * tensorL4_3InC * tensorL4_3OutC,), int8_ty)
-        bn4_tensorLayer3Out_ty = MemRefType.get((tensorL4_3InW, 1, tensorL4_3OutC),int8_ty)
-        
-        # AIE Core Function declarations
-        bn4_conv2dk1_relu_i8_ui8 = external_func("bn4_conv2dk1_relu_i8_ui8",inputs=[bn4_tensorLayer1In_ty, bn4_weightsLayer1_ty, bn4_tensorLayer1Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn4_conv2dk3_dw_stride2_relu_ui8_ui8 = external_func("bn4_conv2dk3_dw_stride2_relu_ui8_ui8",inputs=[bn4_tensorLayer2In_ty,bn4_tensorLayer2In_ty,bn4_tensorLayer2In_ty, bn4_weightsLayer2_ty, bn4_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn4_conv2dk3_dw_stride1_relu_ui8_ui8 = external_func("bn4_conv2dk3_dw_stride1_relu_ui8_ui8",inputs=[bn4_tensorLayer2In_ty,bn4_tensorLayer2In_ty,bn4_tensorLayer2In_ty, bn4_weightsLayer2_ty, bn4_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn4_conv2dk1_skip_ui8_i8_i8 = external_func("bn4_conv2dk1_skip_ui8_i8_i8",inputs=[bn4_tensorLayer3In_ty, bn4_weightsLayer3_ty, bn4_tensorLayer3Out_ty, bn4_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn4_conv2dk1_ui8_i8 = external_func("bn4_conv2dk1_ui8_i8",inputs=[bn4_tensorLayer3In_ty, bn4_weightsLayer3_ty, bn4_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-
-        # Compute tile 6
-        bn4_objectArchiveName = "bn4_combined_con2dk1fusedrelu_conv2dk3dwstride%s_conv2dk1%s.a" % (bn4_depthWiseStride, "skip" if (bn4_withSkip) else "")
-        bn4_tensorLayer1Out_ty = MemRefType.get((tensorL4_2InW, 1, tensorL4_2InC),uint8_ty)
-        bn4_tensorLayer2Out_ty = MemRefType.get((tensorL4_3InW, 1, tensorL4_3InC),uint8_ty)
-        bn4_tensorLayer3Out_ty = MemRefType.get((tensorL4_3InW, 1, tensorL4_3OutC),int8_ty)        
+        # # Compute tile 
+        # bn2_objectArchiveName = "bn2_combined_con2dk1fusedrelu_conv2dk3dwstride%s_conv2dk1%s.a" % (bn2_depthWiseStride, "skip" if (bn2_withSkip) else "")
+        # bn2_tensorLayer1Out_ty = MemRefType.get((tensorL2_2InW, 1, tensorL2_2InC),uint8_ty)
+        # bn2_tensorLayer2Out_ty = MemRefType.get((tensorL2_3InW, 1, tensorL2_3InC),uint8_ty)
+        # bn2_tensorLayer3Out_ty = MemRefType.get((tensorL2_3InW, 1, tensorL2_3OutC),int8_ty)        
 
        
 
         # # between compute tiles
-        act_bn4_bn5 = object_fifo("act_bn4_bn5", ComputeTile15, ComputeTile14, 2, bn4_tensorLayer3Out_ty)
+        # # act_bn2_bn3 = object_fifo("act_bn2_bn3", ComputeTile04, ComputeTile05, [3, 2], bn2_tensorLayer3Out_ty)
+        # act_out = object_fifo("act_out", ComputeTile04, [ShimTile10], 1, bn2_tensorLayer3Out_ty)
 
-        bottleneckACore("bn4", ComputeTile15, act_bn3_bn4, bn4_wts_OF_L3L1, act_bn4_bn5, rtpComputeTile15, bn4_objectArchiveName,
-                         bn4_conv2dk1_relu_i8_ui8, bn4_conv2dk3_dw_stride1_relu_ui8_ui8, bn4_conv2dk3_dw_stride2_relu_ui8_ui8, bn4_conv2dk1_ui8_i8, bn4_conv2dk1_skip_ui8_i8_i8,
-                           bn4_tensorLayer1Out_ty, bn4_tensorLayer2Out_ty, tensorL4_1InW, tensorL4_1InH, tensorL4_1InC,  bn4_depthWiseStride, bn4_depthWiseChannels, tensorL4_3OutC, bn4_withSkip)
+        # bottleneckACore("bn2", ComputeTile04, act_bn01_bn2, bn2_wts_OF_L3L1, act_out, rtpComputeTile04, bn2_objectArchiveName,
+        #                 bn2_conv2dk1_relu_i8_ui8, bn2_conv2dk3_dw_stride1_relu_ui8_ui8, bn2_conv2dk3_dw_stride2_relu_ui8_ui8, bn2_conv2dk1_ui8_i8, bn2_conv2dk1_skip_ui8_i8_i8,
+        #                 bn2_tensorLayer1Out_ty, bn2_tensorLayer2Out_ty, tensorL2_1InW, tensorL2_1InH, tensorL2_1InC,  bn2_depthWiseStride, bn2_depthWiseChannels, tensorL2_3OutC, bn2_withSkip,bn2_scaleFactor1, bn2_scaleFactor2, bn2_scaleFactor3,  bn2_scaleFactorAdd)
 
-        # # # # ******************************************************************bn5******************************************************************
 
-        # temporary types for tensor to enable intial test
-        bn5_tensorLayer1In_ty = MemRefType.get((tensorL5_1InW, 1, tensorL5_1InC), int8_ty)
-        bn5_weightsLayer1_ty = MemRefType.get((1 * 1 * tensorL5_1InC * tensorL5_2InC,), int8_ty)
-        bn5_tensorLayer2In_ty = MemRefType.get((tensorL5_2InW, 1, tensorL5_2InC), uint8_ty)
-        bn5_tensorLayer1Out_ty = bn5_tensorLayer2In_ty
-        bn5_weightsLayer2_ty = MemRefType.get((3 * 3 * tensorL5_3InC * 1,), int8_ty)
-        bn5_tensorLayer3In_ty = MemRefType.get((tensorL5_3InW, 1, tensorL5_3InC), uint8_ty)
-        bn5_tensorLayer2Out_ty = bn5_tensorLayer3In_ty
-        bn5_weightsLayer3_ty = MemRefType.get((1 * 1 * tensorL5_3InC * tensorL5_3OutC,), int8_ty)
-        bn5_tensorLayer3Out_ty = MemRefType.get((tensorL5_3InW, 1, tensorL5_3OutC),int8_ty)
+        # # # # # ******************************************************************bn3******************************************************************
+        # #  # temporary types for tensor to enable intial test
+        # bn3_tensorLayer1In_ty = MemRefType.get((tensorL3_1InW, 1, tensorL3_1InC), int8_ty)
+        # bn3_weightsLayer1_ty = MemRefType.get((1 * 1 * tensorL3_1InC * tensorL3_2InC,), int8_ty)
+        # bn3_tensorLayer1Out_ty = MemRefType.get((tensorL3_2InW, 1, tensorL3_2InC), uint8_ty)
         
-        # AIE Core Function declarations
-        bn5_conv2dk1_relu_i8_ui8 = external_func("bn5_conv2dk1_relu_i8_ui8",inputs=[bn5_tensorLayer1In_ty, bn5_weightsLayer1_ty, bn5_tensorLayer1Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn5_conv2dk3_dw_stride2_relu_ui8_ui8 = external_func("bn5_conv2dk3_dw_stride2_relu_ui8_ui8",inputs=[bn5_tensorLayer2In_ty,bn5_tensorLayer2In_ty,bn5_tensorLayer2In_ty, bn5_weightsLayer2_ty, bn5_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn5_conv2dk3_dw_stride1_relu_ui8_ui8 = external_func("bn5_conv2dk3_dw_stride1_relu_ui8_ui8",inputs=[bn5_tensorLayer2In_ty,bn5_tensorLayer2In_ty,bn5_tensorLayer2In_ty, bn5_weightsLayer2_ty, bn5_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn5_conv2dk1_skip_ui8_i8_i8 = external_func("bn5_conv2dk1_skip_ui8_i8_i8",inputs=[bn5_tensorLayer3In_ty, bn5_weightsLayer3_ty, bn5_tensorLayer3Out_ty, bn5_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn5_conv2dk1_ui8_i8 = external_func("bn5_conv2dk1_ui8_i8",inputs=[bn5_tensorLayer3In_ty, bn5_weightsLayer3_ty, bn5_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn3_tensorLayer2In_ty = bn3_tensorLayer1Out_ty
+        # bn3_weightsLayer2_ty = MemRefType.get((3 * 3 * tensorL3_3InC * 1,), int8_ty)
+        # bn3_tensorLayer2Out_ty = MemRefType.get((tensorL3_3InW, 1, tensorL3_3InC), uint8_ty)
 
-        # Compute tile 6
-        bn5_objectArchiveName = "bn5_combined_con2dk1fusedrelu_conv2dk3dwstride%s_conv2dk1%s.a" % (bn5_depthWiseStride, "skip" if (bn5_withSkip) else "")
-        bn5_tensorLayer1Out_ty = MemRefType.get((tensorL5_2InW, 1, tensorL5_2InC),uint8_ty)
-        bn5_tensorLayer2Out_ty = MemRefType.get((tensorL5_3InW, 1, tensorL5_3InC),uint8_ty)
-        bn5_tensorLayer3Out_ty = MemRefType.get((tensorL5_3InW, 1, tensorL5_3OutC),int8_ty)        
+        # bn3_tensorLayer3In_ty = bn3_tensorLayer2Out_ty
+        # bn3_weightsLayer3_ty = MemRefType.get((1 * 1 * tensorL3_3InC * tensorL3_3OutC,), int8_ty)
+        # bn3_tensorLayer3Out_ty = MemRefType.get((tensorL3_3InW, 1, tensorL3_3OutC),int8_ty)
+        
+        # # AIE Core Function declarations
+        # bn3_conv2dk1_relu_i8_ui8 = external_func("bn3_conv2dk1_relu_i8_ui8",inputs=[bn3_tensorLayer1In_ty, bn3_weightsLayer1_ty, bn3_tensorLayer1Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn3_conv2dk3_dw_stride2_relu_ui8_ui8 = external_func("bn3_conv2dk3_dw_stride2_relu_ui8_ui8",inputs=[bn3_tensorLayer2In_ty,bn3_tensorLayer2In_ty,bn3_tensorLayer2In_ty, bn3_weightsLayer2_ty, bn3_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn3_conv2dk3_dw_stride1_relu_ui8_ui8 = external_func("bn3_conv2dk3_dw_stride1_relu_ui8_ui8",inputs=[bn3_tensorLayer2In_ty,bn3_tensorLayer2In_ty,bn3_tensorLayer2In_ty, bn3_weightsLayer2_ty, bn3_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn3_conv2dk1_skip_ui8_i8_i8 = external_func("bn3_conv2dk1_skip_ui8_i8_i8",inputs=[bn3_tensorLayer3In_ty, bn3_weightsLayer3_ty, bn3_tensorLayer3Out_ty, bn3_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn3_conv2dk1_ui8_i8 = external_func("bn3_conv2dk1_ui8_i8",inputs=[bn3_tensorLayer3In_ty, bn3_weightsLayer3_ty, bn3_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+
+        # # Compute tile 
+        # bn3_objectArchiveName = "bn3_combined_con2dk1fusedrelu_conv2dk3dwstride%s_conv2dk1%s.a" % (bn3_depthWiseStride, "skip" if (bn3_withSkip) else "")
+        # bn3_tensorLayer1Out_ty = MemRefType.get((tensorL3_2InW, 1, tensorL3_2InC),uint8_ty)
+        # bn3_tensorLayer2Out_ty = MemRefType.get((tensorL3_3InW, 1, tensorL3_3InC),uint8_ty)
+        # bn3_tensorLayer3Out_ty = MemRefType.get((tensorL3_3InW, 1, tensorL3_3OutC),int8_ty)        
+       
+
+        # # # # between compute tiles
+        # act_bn3_bn4 = object_fifo("act_bn3_bn4", ComputeTile05, ComputeTile15, [3, 2], bn3_tensorLayer3Out_ty)
+
+        # bottleneckACore("bn3", ComputeTile05, act_bn2_bn3, bn3_wts_OF_L3L1, act_bn3_bn4, rtpComputeTile05, bn3_objectArchiveName,
+        #                  bn3_conv2dk1_relu_i8_ui8, bn3_conv2dk3_dw_stride1_relu_ui8_ui8, bn3_conv2dk3_dw_stride2_relu_ui8_ui8, bn3_conv2dk1_ui8_i8, bn3_conv2dk1_skip_ui8_i8_i8,
+        #                    bn3_tensorLayer1Out_ty, bn3_tensorLayer2Out_ty, tensorL3_1InW, tensorL3_1InH, tensorL3_1InC, bn3_depthWiseStride, bn3_depthWiseChannels, tensorL3_3OutC, bn3_withSkip,bn3_scaleFactor1, bn3_scaleFactor2, bn3_scaleFactor3,  bn3_scaleFactorAdd)
+
+        # # # # # ******************************************************************bn4******************************************************************
+
+        #  # temporary types for tensor to enable intial test
+        # bn4_tensorLayer1In_ty = MemRefType.get((tensorL4_1InW, 1, tensorL4_1InC), int8_ty)
+        # bn4_weightsLayer1_ty = MemRefType.get((1 * 1 * tensorL4_1InC * tensorL4_2InC,), int8_ty)
+        # bn4_tensorLayer1Out_ty = MemRefType.get((tensorL4_2InW, 1, tensorL4_2InC), uint8_ty)
+    
+        # bn4_tensorLayer2In_ty = bn4_tensorLayer1Out_ty
+        # bn4_weightsLayer2_ty = MemRefType.get((3 * 3 * tensorL4_3InC * 1,), int8_ty)
+        # bn4_tensorLayer2Out_ty = MemRefType.get((tensorL4_3InW, 1, tensorL4_3InC), uint8_ty)
+
+        # bn4_tensorLayer3In_ty = bn4_tensorLayer2Out_ty
+        # bn4_weightsLayer3_ty = MemRefType.get((1 * 1 * tensorL4_3InC * tensorL4_3OutC,), int8_ty)
+        # bn4_tensorLayer3Out_ty = MemRefType.get((tensorL4_3InW, 1, tensorL4_3OutC),int8_ty)
+        
+        # # AIE Core Function declarations
+        # bn4_conv2dk1_relu_i8_ui8 = external_func("bn4_conv2dk1_relu_i8_ui8",inputs=[bn4_tensorLayer1In_ty, bn4_weightsLayer1_ty, bn4_tensorLayer1Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn4_conv2dk3_dw_stride2_relu_ui8_ui8 = external_func("bn4_conv2dk3_dw_stride2_relu_ui8_ui8",inputs=[bn4_tensorLayer2In_ty,bn4_tensorLayer2In_ty,bn4_tensorLayer2In_ty, bn4_weightsLayer2_ty, bn4_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn4_conv2dk3_dw_stride1_relu_ui8_ui8 = external_func("bn4_conv2dk3_dw_stride1_relu_ui8_ui8",inputs=[bn4_tensorLayer2In_ty,bn4_tensorLayer2In_ty,bn4_tensorLayer2In_ty, bn4_weightsLayer2_ty, bn4_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn4_conv2dk1_skip_ui8_i8_i8 = external_func("bn4_conv2dk1_skip_ui8_i8_i8",inputs=[bn4_tensorLayer3In_ty, bn4_weightsLayer3_ty, bn4_tensorLayer3Out_ty, bn4_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn4_conv2dk1_ui8_i8 = external_func("bn4_conv2dk1_ui8_i8",inputs=[bn4_tensorLayer3In_ty, bn4_weightsLayer3_ty, bn4_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+
+        # # Compute tile 6
+        # bn4_objectArchiveName = "bn4_combined_con2dk1fusedrelu_conv2dk3dwstride%s_conv2dk1%s.a" % (bn4_depthWiseStride, "skip" if (bn4_withSkip) else "")
+        # bn4_tensorLayer1Out_ty = MemRefType.get((tensorL4_2InW, 1, tensorL4_2InC),uint8_ty)
+        # bn4_tensorLayer2Out_ty = MemRefType.get((tensorL4_3InW, 1, tensorL4_3InC),uint8_ty)
+        # bn4_tensorLayer3Out_ty = MemRefType.get((tensorL4_3InW, 1, tensorL4_3OutC),int8_ty)        
 
        
 
-        # between compute tiles
-        act_bn5_bn6 = object_fifo("act_bn5_bn6", ComputeTile14, ComputeTile12, 2, bn5_tensorLayer3Out_ty)
+        # # # between compute tiles
+        # act_bn4_bn5 = object_fifo("act_bn4_bn5", ComputeTile15, ComputeTile14, 2, bn4_tensorLayer3Out_ty)
 
-        bottleneckACore("bn5", ComputeTile14, act_bn4_bn5, bn5_wts_OF_L3L1, act_bn5_bn6, rtpComputeTile14, bn5_objectArchiveName,
-                         bn5_conv2dk1_relu_i8_ui8, bn5_conv2dk3_dw_stride1_relu_ui8_ui8, bn5_conv2dk3_dw_stride2_relu_ui8_ui8, bn5_conv2dk1_ui8_i8, bn5_conv2dk1_skip_ui8_i8_i8,
-                           bn5_tensorLayer1Out_ty, bn5_tensorLayer2Out_ty, tensorL5_1InW, tensorL5_1InH, tensorL5_1InC,  bn5_depthWiseStride, bn5_depthWiseChannels, tensorL5_3OutC, bn5_withSkip)
+        # bottleneckACore("bn4", ComputeTile15, act_bn3_bn4, bn4_wts_OF_L3L1, act_bn4_bn5, rtpComputeTile15, bn4_objectArchiveName,
+        #                  bn4_conv2dk1_relu_i8_ui8, bn4_conv2dk3_dw_stride1_relu_ui8_ui8, bn4_conv2dk3_dw_stride2_relu_ui8_ui8, bn4_conv2dk1_ui8_i8, bn4_conv2dk1_skip_ui8_i8_i8,
+        #                    bn4_tensorLayer1Out_ty, bn4_tensorLayer2Out_ty, tensorL4_1InW, tensorL4_1InH, tensorL4_1InC,  bn4_depthWiseStride, bn4_depthWiseChannels, tensorL4_3OutC, bn4_withSkip)
 
+        # # # # # ******************************************************************bn5******************************************************************
 
         # # temporary types for tensor to enable intial test
-        bn6_tensorLayer1In_ty = MemRefType.get((tensorL6_1InW, 1, tensorL6_1InC), int8_ty)
-        bn6_weightsLayer1_ty = MemRefType.get((1 * 1 * tensorL6_1InC * tensorL6_2InC,), int8_ty)
-        bn6_tensorLayer2In_ty = MemRefType.get((tensorL6_2InW, 1, tensorL6_2InC), uint8_ty)
-        bn6_tensorLayer1Out_ty = bn6_tensorLayer2In_ty
-        bn6_weightsLayer2_ty = MemRefType.get((3 * 3 * tensorL6_3InC * 1,), int8_ty)
-        bn6_tensorLayer3In_ty = MemRefType.get((tensorL6_3InW, 1, tensorL6_3InC), uint8_ty)
-        bn6_tensorLayer2Out_ty = bn6_tensorLayer3In_ty
-        bn6_weightsLayer3_ty = MemRefType.get((1 * 1 * tensorL6_3InC * tensorL6_3OutC,), int8_ty)
-        bn6_tensorLayer3Out_ty = MemRefType.get((tensorL6_3InW, 1, tensorL6_3OutC),int8_ty)
+        # bn5_tensorLayer1In_ty = MemRefType.get((tensorL5_1InW, 1, tensorL5_1InC), int8_ty)
+        # bn5_weightsLayer1_ty = MemRefType.get((1 * 1 * tensorL5_1InC * tensorL5_2InC,), int8_ty)
+        # bn5_tensorLayer2In_ty = MemRefType.get((tensorL5_2InW, 1, tensorL5_2InC), uint8_ty)
+        # bn5_tensorLayer1Out_ty = bn5_tensorLayer2In_ty
+        # bn5_weightsLayer2_ty = MemRefType.get((3 * 3 * tensorL5_3InC * 1,), int8_ty)
+        # bn5_tensorLayer3In_ty = MemRefType.get((tensorL5_3InW, 1, tensorL5_3InC), uint8_ty)
+        # bn5_tensorLayer2Out_ty = bn5_tensorLayer3In_ty
+        # bn5_weightsLayer3_ty = MemRefType.get((1 * 1 * tensorL5_3InC * tensorL5_3OutC,), int8_ty)
+        # bn5_tensorLayer3Out_ty = MemRefType.get((tensorL5_3InW, 1, tensorL5_3OutC),int8_ty)
         
-        # AIE Core Function declarations
-        bn6_conv2dk1_relu_i8_ui8 = external_func("bn6_conv2dk1_relu_i8_ui8",inputs=[bn6_tensorLayer1In_ty, bn6_weightsLayer1_ty, bn6_tensorLayer1Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn6_conv2dk3_dw_stride2_relu_ui8_ui8 = external_func("bn6_conv2dk3_dw_stride2_relu_ui8_ui8",inputs=[bn6_tensorLayer2In_ty,bn6_tensorLayer2In_ty,bn6_tensorLayer2In_ty, bn6_weightsLayer2_ty, bn6_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn6_conv2dk3_dw_stride1_relu_ui8_ui8 = external_func("bn6_conv2dk3_dw_stride1_relu_ui8_ui8",inputs=[bn6_tensorLayer2In_ty,bn6_tensorLayer2In_ty,bn6_tensorLayer2In_ty, bn6_weightsLayer2_ty, bn6_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn6_conv2dk1_skip_ui8_i8_i8 = external_func("bn6_conv2dk1_skip_ui8_i8_i8",inputs=[bn6_tensorLayer3In_ty, bn6_weightsLayer3_ty, bn6_tensorLayer3Out_ty, bn6_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn6_conv2dk1_ui8_i8 = external_func("bn6_conv2dk1_ui8_i8",inputs=[bn6_tensorLayer3In_ty, bn6_weightsLayer3_ty, bn6_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # # AIE Core Function declarations
+        # bn5_conv2dk1_relu_i8_ui8 = external_func("bn5_conv2dk1_relu_i8_ui8",inputs=[bn5_tensorLayer1In_ty, bn5_weightsLayer1_ty, bn5_tensorLayer1Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn5_conv2dk3_dw_stride2_relu_ui8_ui8 = external_func("bn5_conv2dk3_dw_stride2_relu_ui8_ui8",inputs=[bn5_tensorLayer2In_ty,bn5_tensorLayer2In_ty,bn5_tensorLayer2In_ty, bn5_weightsLayer2_ty, bn5_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn5_conv2dk3_dw_stride1_relu_ui8_ui8 = external_func("bn5_conv2dk3_dw_stride1_relu_ui8_ui8",inputs=[bn5_tensorLayer2In_ty,bn5_tensorLayer2In_ty,bn5_tensorLayer2In_ty, bn5_weightsLayer2_ty, bn5_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn5_conv2dk1_skip_ui8_i8_i8 = external_func("bn5_conv2dk1_skip_ui8_i8_i8",inputs=[bn5_tensorLayer3In_ty, bn5_weightsLayer3_ty, bn5_tensorLayer3Out_ty, bn5_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn5_conv2dk1_ui8_i8 = external_func("bn5_conv2dk1_ui8_i8",inputs=[bn5_tensorLayer3In_ty, bn5_weightsLayer3_ty, bn5_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
 
-        
         # # Compute tile 6
-        bn6_objectArchiveName = "bn6_combined_con2dk1fusedrelu_conv2dk3dwstride%s_conv2dk1%s.a" % (bn6_depthWiseStride, "skip" if (bn6_withSkip) else "")
-        bn6_tensorLayer1Out_ty = MemRefType.get((tensorL6_2InW, 1, tensorL6_2InC),uint8_ty)
-        bn6_tensorLayer2Out_ty = MemRefType.get((tensorL6_3InW, 1, tensorL6_3InC),uint8_ty)
-        bn6_tensorLayer3Out_ty = MemRefType.get((tensorL6_3InW, 1, tensorL6_3OutC),int8_ty)
+        # bn5_objectArchiveName = "bn5_combined_con2dk1fusedrelu_conv2dk3dwstride%s_conv2dk1%s.a" % (bn5_depthWiseStride, "skip" if (bn5_withSkip) else "")
+        # bn5_tensorLayer1Out_ty = MemRefType.get((tensorL5_2InW, 1, tensorL5_2InC),uint8_ty)
+        # bn5_tensorLayer2Out_ty = MemRefType.get((tensorL5_3InW, 1, tensorL5_3InC),uint8_ty)
+        # bn5_tensorLayer3Out_ty = MemRefType.get((tensorL5_3InW, 1, tensorL5_3OutC),int8_ty)        
 
-        # between compute tiles
-        act_bn6_bn7 = object_fifo("act_bn6_bn7", ComputeTile12, ComputeTile13, 2, bn6_tensorLayer3Out_ty)
+       
+
+        # # between compute tiles
+        # act_bn5_bn6 = object_fifo("act_bn5_bn6", ComputeTile14, ComputeTile12, 2, bn5_tensorLayer3Out_ty)
+
+        # bottleneckACore("bn5", ComputeTile14, act_bn4_bn5, bn5_wts_OF_L3L1, act_bn5_bn6, rtpComputeTile14, bn5_objectArchiveName,
+        #                  bn5_conv2dk1_relu_i8_ui8, bn5_conv2dk3_dw_stride1_relu_ui8_ui8, bn5_conv2dk3_dw_stride2_relu_ui8_ui8, bn5_conv2dk1_ui8_i8, bn5_conv2dk1_skip_ui8_i8_i8,
+        #                    bn5_tensorLayer1Out_ty, bn5_tensorLayer2Out_ty, tensorL5_1InW, tensorL5_1InH, tensorL5_1InC,  bn5_depthWiseStride, bn5_depthWiseChannels, tensorL5_3OutC, bn5_withSkip)
 
 
-        bottleneckACore("bn6", ComputeTile12, act_bn5_bn6, bn6_wts_OF_L3L1, act_bn6_bn7, rtpComputeTile12, bn6_objectArchiveName,
-                         bn6_conv2dk1_relu_i8_ui8, bn6_conv2dk3_dw_stride1_relu_ui8_ui8, bn6_conv2dk3_dw_stride2_relu_ui8_ui8, bn6_conv2dk1_ui8_i8, bn6_conv2dk1_skip_ui8_i8_i8,
-                           bn6_tensorLayer1Out_ty, bn6_tensorLayer2Out_ty, tensorL6_1InW, tensorL6_1InH, tensorL6_1InC,  bn6_depthWiseStride, bn6_depthWiseChannels, tensorL6_3OutC, bn6_withSkip)
+        # # # temporary types for tensor to enable intial test
+        # bn6_tensorLayer1In_ty = MemRefType.get((tensorL6_1InW, 1, tensorL6_1InC), int8_ty)
+        # bn6_weightsLayer1_ty = MemRefType.get((1 * 1 * tensorL6_1InC * tensorL6_2InC,), int8_ty)
+        # bn6_tensorLayer2In_ty = MemRefType.get((tensorL6_2InW, 1, tensorL6_2InC), uint8_ty)
+        # bn6_tensorLayer1Out_ty = bn6_tensorLayer2In_ty
+        # bn6_weightsLayer2_ty = MemRefType.get((3 * 3 * tensorL6_3InC * 1,), int8_ty)
+        # bn6_tensorLayer3In_ty = MemRefType.get((tensorL6_3InW, 1, tensorL6_3InC), uint8_ty)
+        # bn6_tensorLayer2Out_ty = bn6_tensorLayer3In_ty
+        # bn6_weightsLayer3_ty = MemRefType.get((1 * 1 * tensorL6_3InC * tensorL6_3OutC,), int8_ty)
+        # bn6_tensorLayer3Out_ty = MemRefType.get((tensorL6_3InW, 1, tensorL6_3OutC),int8_ty)
+        
+        # # AIE Core Function declarations
+        # bn6_conv2dk1_relu_i8_ui8 = external_func("bn6_conv2dk1_relu_i8_ui8",inputs=[bn6_tensorLayer1In_ty, bn6_weightsLayer1_ty, bn6_tensorLayer1Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn6_conv2dk3_dw_stride2_relu_ui8_ui8 = external_func("bn6_conv2dk3_dw_stride2_relu_ui8_ui8",inputs=[bn6_tensorLayer2In_ty,bn6_tensorLayer2In_ty,bn6_tensorLayer2In_ty, bn6_weightsLayer2_ty, bn6_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn6_conv2dk3_dw_stride1_relu_ui8_ui8 = external_func("bn6_conv2dk3_dw_stride1_relu_ui8_ui8",inputs=[bn6_tensorLayer2In_ty,bn6_tensorLayer2In_ty,bn6_tensorLayer2In_ty, bn6_weightsLayer2_ty, bn6_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn6_conv2dk1_skip_ui8_i8_i8 = external_func("bn6_conv2dk1_skip_ui8_i8_i8",inputs=[bn6_tensorLayer3In_ty, bn6_weightsLayer3_ty, bn6_tensorLayer3Out_ty, bn6_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn6_conv2dk1_ui8_i8 = external_func("bn6_conv2dk1_ui8_i8",inputs=[bn6_tensorLayer3In_ty, bn6_weightsLayer3_ty, bn6_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
 
-        ##### ******************************************************************************************************************************
-        bn7_tensorLayer1In_ty = MemRefType.get((tensorL7_1InW, 1, tensorL7_1InC), int8_ty)
-        bn7_weightsLayer1_ty = MemRefType.get((1 * 1 * tensorL7_1InC * tensorL7_2InC,), int8_ty)
-        bn7_tensorLayer2In_ty = MemRefType.get((tensorL7_2InW, 1, tensorL7_2InC), uint8_ty)
-        bn7_tensorLayer1Out_ty = bn7_tensorLayer2In_ty
-        bn7_weightsLayer2_ty = MemRefType.get((3 * 3 * tensorL7_3InC * 1,), int8_ty)
-        bn7_tensorLayer3In_ty = MemRefType.get((tensorL7_3InW, 1, tensorL7_3InC), uint8_ty)
-        bn7_tensorLayer2Out_ty = bn7_tensorLayer3In_ty
-        bn7_weightsLayer3_ty = MemRefType.get((1 * 1 * tensorL7_3InC * tensorL7_3OutC,), int8_ty)
-        bn7_tensorLayer3Out_ty = MemRefType.get((tensorL7_3InW, 1, tensorL7_3OutC),int8_ty)
+        
+        # # # Compute tile 6
+        # bn6_objectArchiveName = "bn6_combined_con2dk1fusedrelu_conv2dk3dwstride%s_conv2dk1%s.a" % (bn6_depthWiseStride, "skip" if (bn6_withSkip) else "")
+        # bn6_tensorLayer1Out_ty = MemRefType.get((tensorL6_2InW, 1, tensorL6_2InC),uint8_ty)
+        # bn6_tensorLayer2Out_ty = MemRefType.get((tensorL6_3InW, 1, tensorL6_3InC),uint8_ty)
+        # bn6_tensorLayer3Out_ty = MemRefType.get((tensorL6_3InW, 1, tensorL6_3OutC),int8_ty)
+
+        # # between compute tiles
+        # act_bn6_bn7 = object_fifo("act_bn6_bn7", ComputeTile12, ComputeTile13, 2, bn6_tensorLayer3Out_ty)
+
+
+        # bottleneckACore("bn6", ComputeTile12, act_bn5_bn6, bn6_wts_OF_L3L1, act_bn6_bn7, rtpComputeTile12, bn6_objectArchiveName,
+        #                  bn6_conv2dk1_relu_i8_ui8, bn6_conv2dk3_dw_stride1_relu_ui8_ui8, bn6_conv2dk3_dw_stride2_relu_ui8_ui8, bn6_conv2dk1_ui8_i8, bn6_conv2dk1_skip_ui8_i8_i8,
+        #                    bn6_tensorLayer1Out_ty, bn6_tensorLayer2Out_ty, tensorL6_1InW, tensorL6_1InH, tensorL6_1InC,  bn6_depthWiseStride, bn6_depthWiseChannels, tensorL6_3OutC, bn6_withSkip)
+
+        # ##### ******************************************************************************************************************************
+        # bn7_tensorLayer1In_ty = MemRefType.get((tensorL7_1InW, 1, tensorL7_1InC), int8_ty)
+        # bn7_weightsLayer1_ty = MemRefType.get((1 * 1 * tensorL7_1InC * tensorL7_2InC,), int8_ty)
+        # bn7_tensorLayer2In_ty = MemRefType.get((tensorL7_2InW, 1, tensorL7_2InC), uint8_ty)
+        # bn7_tensorLayer1Out_ty = bn7_tensorLayer2In_ty
+        # bn7_weightsLayer2_ty = MemRefType.get((3 * 3 * tensorL7_3InC * 1,), int8_ty)
+        # bn7_tensorLayer3In_ty = MemRefType.get((tensorL7_3InW, 1, tensorL7_3InC), uint8_ty)
+        # bn7_tensorLayer2Out_ty = bn7_tensorLayer3In_ty
+        # bn7_weightsLayer3_ty = MemRefType.get((1 * 1 * tensorL7_3InC * tensorL7_3OutC,), int8_ty)
+        # bn7_tensorLayer3Out_ty = MemRefType.get((tensorL7_3InW, 1, tensorL7_3OutC),int8_ty)
         
         
 
-        # AIE Core Function declarations
-        bn7_conv2dk1_relu_i8_ui8 = external_func("bn7_conv2dk1_relu_i8_ui8",inputs=[bn7_tensorLayer1In_ty, bn7_weightsLayer1_ty, bn7_tensorLayer1Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn7_conv2dk3_dw_stride2_relu_ui8_ui8 = external_func("bn7_conv2dk3_dw_stride2_relu_ui8_ui8",inputs=[bn7_tensorLayer2In_ty,bn7_tensorLayer2In_ty,bn7_tensorLayer2In_ty, bn7_weightsLayer2_ty, bn7_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn7_conv2dk3_dw_stride1_relu_ui8_ui8 = external_func("bn7_conv2dk3_dw_stride1_relu_ui8_ui8",inputs=[bn7_tensorLayer2In_ty,bn7_tensorLayer2In_ty,bn7_tensorLayer2In_ty, bn7_weightsLayer2_ty, bn7_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn7_conv2dk1_skip_ui8_i8_i8 = external_func("bn7_conv2dk1_skip_ui8_i8_i8",inputs=[bn7_tensorLayer3In_ty, bn7_weightsLayer3_ty, bn7_tensorLayer3Out_ty, bn7_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn7_conv2dk1_ui8_i8 = external_func("bn7_conv2dk1_ui8_i8",inputs=[bn7_tensorLayer3In_ty, bn7_weightsLayer3_ty, bn7_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # # AIE Core Function declarations
+        # bn7_conv2dk1_relu_i8_ui8 = external_func("bn7_conv2dk1_relu_i8_ui8",inputs=[bn7_tensorLayer1In_ty, bn7_weightsLayer1_ty, bn7_tensorLayer1Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn7_conv2dk3_dw_stride2_relu_ui8_ui8 = external_func("bn7_conv2dk3_dw_stride2_relu_ui8_ui8",inputs=[bn7_tensorLayer2In_ty,bn7_tensorLayer2In_ty,bn7_tensorLayer2In_ty, bn7_weightsLayer2_ty, bn7_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn7_conv2dk3_dw_stride1_relu_ui8_ui8 = external_func("bn7_conv2dk3_dw_stride1_relu_ui8_ui8",inputs=[bn7_tensorLayer2In_ty,bn7_tensorLayer2In_ty,bn7_tensorLayer2In_ty, bn7_weightsLayer2_ty, bn7_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn7_conv2dk1_skip_ui8_i8_i8 = external_func("bn7_conv2dk1_skip_ui8_i8_i8",inputs=[bn7_tensorLayer3In_ty, bn7_weightsLayer3_ty, bn7_tensorLayer3Out_ty, bn7_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn7_conv2dk1_ui8_i8 = external_func("bn7_conv2dk1_ui8_i8",inputs=[bn7_tensorLayer3In_ty, bn7_weightsLayer3_ty, bn7_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
 
-        bn7_objectArchiveName = "bn7_combined_con2dk1fusedrelu_conv2dk3dwstride%s_conv2dk1%s.a" % (bn7_depthWiseStride, "skip" if (bn7_withSkip) else "")
+        # bn7_objectArchiveName = "bn7_combined_con2dk1fusedrelu_conv2dk3dwstride%s_conv2dk1%s.a" % (bn7_depthWiseStride, "skip" if (bn7_withSkip) else "")
 
-        # between compute tiles
-        act_bn7_bn8 = object_fifo("act_bn7_bn8", ComputeTile13, ComputeTile22, 2, bn7_tensorLayer3Out_ty)
+        # # between compute tiles
+        # act_bn7_bn8 = object_fifo("act_bn7_bn8", ComputeTile13, ComputeTile22, 2, bn7_tensorLayer3Out_ty)
 
-        bottleneckACore("bn7", ComputeTile13, act_bn6_bn7, bn7_wts_OF_L3L1, act_bn7_bn8, rtpComputeTile13, bn7_objectArchiveName, 
-                        bn7_conv2dk1_relu_i8_ui8, bn7_conv2dk3_dw_stride1_relu_ui8_ui8, bn7_conv2dk3_dw_stride2_relu_ui8_ui8, bn7_conv2dk1_ui8_i8, bn7_conv2dk1_skip_ui8_i8_i8, 
-                        bn7_tensorLayer1Out_ty, bn7_tensorLayer2Out_ty, tensorL7_1InW, tensorL7_1InH, tensorL7_1InC, bn7_depthWiseStride, bn7_depthWiseChannels, tensorL7_3OutC, bn7_withSkip)
+        # bottleneckACore("bn7", ComputeTile13, act_bn6_bn7, bn7_wts_OF_L3L1, act_bn7_bn8, rtpComputeTile13, bn7_objectArchiveName, 
+        #                 bn7_conv2dk1_relu_i8_ui8, bn7_conv2dk3_dw_stride1_relu_ui8_ui8, bn7_conv2dk3_dw_stride2_relu_ui8_ui8, bn7_conv2dk1_ui8_i8, bn7_conv2dk1_skip_ui8_i8_i8, 
+        #                 bn7_tensorLayer1Out_ty, bn7_tensorLayer2Out_ty, tensorL7_1InW, tensorL7_1InH, tensorL7_1InC, bn7_depthWiseStride, bn7_depthWiseChannels, tensorL7_3OutC, bn7_withSkip)
 
 
-        ##### ******************************************************************************************************************************        
-        bn8_tensorLayer1In_ty = MemRefType.get((tensorL8_1InW, 1, tensorL8_1InC), int8_ty)
-        bn8_weightsLayer1_ty = MemRefType.get((1 * 1 * tensorL8_1InC * tensorL8_2InC,), int8_ty)
-        bn8_tensorLayer2In_ty = MemRefType.get((tensorL8_2InW, 1, tensorL8_2InC), uint8_ty)
-        bn8_tensorLayer1Out_ty = bn8_tensorLayer2In_ty
-        bn8_weightsLayer2_ty = MemRefType.get((3 * 3 * tensorL8_3InC * 1,), int8_ty)
-        bn8_tensorLayer3In_ty = MemRefType.get((tensorL8_3InW, 1, tensorL8_3InC), uint8_ty)
-        bn8_tensorLayer2Out_ty = bn8_tensorLayer3In_ty
-        bn8_weightsLayer3_ty = MemRefType.get((1 * 1 * tensorL8_3InC * tensorL8_3OutC,), int8_ty)
-        bn8_tensorLayer3Out_ty = MemRefType.get((tensorL8_3InW, 1, tensorL8_3OutC),int8_ty)
+        # ##### ******************************************************************************************************************************        
+        # bn8_tensorLayer1In_ty = MemRefType.get((tensorL8_1InW, 1, tensorL8_1InC), int8_ty)
+        # bn8_weightsLayer1_ty = MemRefType.get((1 * 1 * tensorL8_1InC * tensorL8_2InC,), int8_ty)
+        # bn8_tensorLayer2In_ty = MemRefType.get((tensorL8_2InW, 1, tensorL8_2InC), uint8_ty)
+        # bn8_tensorLayer1Out_ty = bn8_tensorLayer2In_ty
+        # bn8_weightsLayer2_ty = MemRefType.get((3 * 3 * tensorL8_3InC * 1,), int8_ty)
+        # bn8_tensorLayer3In_ty = MemRefType.get((tensorL8_3InW, 1, tensorL8_3InC), uint8_ty)
+        # bn8_tensorLayer2Out_ty = bn8_tensorLayer3In_ty
+        # bn8_weightsLayer3_ty = MemRefType.get((1 * 1 * tensorL8_3InC * tensorL8_3OutC,), int8_ty)
+        # bn8_tensorLayer3Out_ty = MemRefType.get((tensorL8_3InW, 1, tensorL8_3OutC),int8_ty)
         
-        # Output
-        act_bn8_bn9 = object_fifo("act_bn8_bn9", ComputeTile22, ComputeTile23, 2, bn8_tensorLayer3Out_ty)
+        # # Output
+        # act_bn8_bn9 = object_fifo("act_bn8_bn9", ComputeTile22, ComputeTile23, 2, bn8_tensorLayer3Out_ty)
 
-        # AIE Core Function declarations
-        bn8_conv2dk1_relu_i8_ui8 = external_func("bn8_conv2dk1_relu_i8_ui8",inputs=[bn8_tensorLayer1In_ty, bn8_weightsLayer1_ty, bn8_tensorLayer1Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn8_conv2dk3_dw_stride2_relu_ui8_ui8 = external_func("bn8_conv2dk3_dw_stride2_relu_ui8_ui8",inputs=[bn8_tensorLayer2In_ty,bn8_tensorLayer2In_ty,bn8_tensorLayer2In_ty, bn8_weightsLayer2_ty, bn8_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn8_conv2dk3_dw_stride1_relu_ui8_ui8 = external_func("bn8_conv2dk3_dw_stride1_relu_ui8_ui8",inputs=[bn8_tensorLayer2In_ty,bn8_tensorLayer2In_ty,bn8_tensorLayer2In_ty, bn8_weightsLayer2_ty, bn8_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn8_conv2dk1_skip_ui8_i8_i8 = external_func("bn8_conv2dk1_skip_ui8_i8_i8",inputs=[bn8_tensorLayer3In_ty, bn8_weightsLayer3_ty, bn8_tensorLayer3Out_ty, bn8_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn8_conv2dk1_ui8_i8 = external_func("bn8_conv2dk1_ui8_i8",inputs=[bn8_tensorLayer3In_ty, bn8_weightsLayer3_ty, bn8_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # # AIE Core Function declarations
+        # bn8_conv2dk1_relu_i8_ui8 = external_func("bn8_conv2dk1_relu_i8_ui8",inputs=[bn8_tensorLayer1In_ty, bn8_weightsLayer1_ty, bn8_tensorLayer1Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn8_conv2dk3_dw_stride2_relu_ui8_ui8 = external_func("bn8_conv2dk3_dw_stride2_relu_ui8_ui8",inputs=[bn8_tensorLayer2In_ty,bn8_tensorLayer2In_ty,bn8_tensorLayer2In_ty, bn8_weightsLayer2_ty, bn8_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn8_conv2dk3_dw_stride1_relu_ui8_ui8 = external_func("bn8_conv2dk3_dw_stride1_relu_ui8_ui8",inputs=[bn8_tensorLayer2In_ty,bn8_tensorLayer2In_ty,bn8_tensorLayer2In_ty, bn8_weightsLayer2_ty, bn8_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn8_conv2dk1_skip_ui8_i8_i8 = external_func("bn8_conv2dk1_skip_ui8_i8_i8",inputs=[bn8_tensorLayer3In_ty, bn8_weightsLayer3_ty, bn8_tensorLayer3Out_ty, bn8_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn8_conv2dk1_ui8_i8 = external_func("bn8_conv2dk1_ui8_i8",inputs=[bn8_tensorLayer3In_ty, bn8_weightsLayer3_ty, bn8_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
 
-        bn8_objectArchiveName = "bn8_combined_con2dk1fusedrelu_conv2dk3dwstride%s_conv2dk1%s.a" % (bn8_depthWiseStride, "skip" if (bn8_withSkip) else "")
+        # bn8_objectArchiveName = "bn8_combined_con2dk1fusedrelu_conv2dk3dwstride%s_conv2dk1%s.a" % (bn8_depthWiseStride, "skip" if (bn8_withSkip) else "")
 
-        bottleneckACore("bn8", ComputeTile22, act_bn7_bn8, bn8_wts_OF_L3L1, act_bn8_bn9, rtpComputeTile22, bn8_objectArchiveName, 
-                        bn8_conv2dk1_relu_i8_ui8, bn8_conv2dk3_dw_stride1_relu_ui8_ui8, bn8_conv2dk3_dw_stride2_relu_ui8_ui8, bn8_conv2dk1_ui8_i8, bn8_conv2dk1_skip_ui8_i8_i8, 
-                        bn8_tensorLayer1Out_ty, bn8_tensorLayer2Out_ty, tensorL8_1InW, tensorL8_1InH, tensorL8_1InC, bn8_depthWiseStride, bn8_depthWiseChannels, tensorL8_3OutC, bn8_withSkip)
+        # bottleneckACore("bn8", ComputeTile22, act_bn7_bn8, bn8_wts_OF_L3L1, act_bn8_bn9, rtpComputeTile22, bn8_objectArchiveName, 
+        #                 bn8_conv2dk1_relu_i8_ui8, bn8_conv2dk3_dw_stride1_relu_ui8_ui8, bn8_conv2dk3_dw_stride2_relu_ui8_ui8, bn8_conv2dk1_ui8_i8, bn8_conv2dk1_skip_ui8_i8_i8, 
+        #                 bn8_tensorLayer1Out_ty, bn8_tensorLayer2Out_ty, tensorL8_1InW, tensorL8_1InH, tensorL8_1InC, bn8_depthWiseStride, bn8_depthWiseChannels, tensorL8_3OutC, bn8_withSkip)
 
-        ##### ******************************************************************************************************************************        
-        bn9_tensorLayer1In_ty = MemRefType.get((tensorL9_1InW, 1, tensorL9_1InC), int8_ty)
-        bn9_weightsLayer1_ty = MemRefType.get((1 * 1 * tensorL9_1InC * tensorL9_2InC,), int8_ty)
-        bn9_tensorLayer2In_ty = MemRefType.get((tensorL9_2InW, 1, tensorL9_2InC), uint8_ty)
-        bn9_tensorLayer1Out_ty = bn9_tensorLayer2In_ty
-        bn9_weightsLayer2_ty = MemRefType.get((3 * 3 * tensorL9_3InC * 1,), int8_ty)
-        bn9_tensorLayer3In_ty = MemRefType.get((tensorL9_3InW, 1, tensorL9_3InC), uint8_ty)
-        bn9_tensorLayer2Out_ty = bn9_tensorLayer3In_ty
-        bn9_weightsLayer3_ty = MemRefType.get((1 * 1 * tensorL9_3InC * tensorL9_3OutC,), int8_ty)
-        bn9_tensorLayer3Out_ty = MemRefType.get((tensorL9_3InW, 1, tensorL9_3OutC),int8_ty)
+        # ##### ******************************************************************************************************************************        
+        # bn9_tensorLayer1In_ty = MemRefType.get((tensorL9_1InW, 1, tensorL9_1InC), int8_ty)
+        # bn9_weightsLayer1_ty = MemRefType.get((1 * 1 * tensorL9_1InC * tensorL9_2InC,), int8_ty)
+        # bn9_tensorLayer2In_ty = MemRefType.get((tensorL9_2InW, 1, tensorL9_2InC), uint8_ty)
+        # bn9_tensorLayer1Out_ty = bn9_tensorLayer2In_ty
+        # bn9_weightsLayer2_ty = MemRefType.get((3 * 3 * tensorL9_3InC * 1,), int8_ty)
+        # bn9_tensorLayer3In_ty = MemRefType.get((tensorL9_3InW, 1, tensorL9_3InC), uint8_ty)
+        # bn9_tensorLayer2Out_ty = bn9_tensorLayer3In_ty
+        # bn9_weightsLayer3_ty = MemRefType.get((1 * 1 * tensorL9_3InC * tensorL9_3OutC,), int8_ty)
+        # bn9_tensorLayer3Out_ty = MemRefType.get((tensorL9_3InW, 1, tensorL9_3OutC),int8_ty)
         
-        # Output
-        act_out = object_fifo("act_out", ComputeTile23, ShimTile10, 2, tensorLayerOut_ty)
+        # # Output
+        # act_out = object_fifo("act_out", ComputeTile23, ShimTile10, 2, tensorLayerOut_ty)
 
-        # AIE Core Function declarations
-        bn9_conv2dk1_relu_i8_ui8 = external_func("bn9_conv2dk1_relu_i8_ui8",inputs=[bn9_tensorLayer1In_ty, bn9_weightsLayer1_ty, bn9_tensorLayer1Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn9_conv2dk3_dw_stride2_relu_ui8_ui8 = external_func("bn9_conv2dk3_dw_stride2_relu_ui8_ui8",inputs=[bn9_tensorLayer2In_ty,bn9_tensorLayer2In_ty,bn9_tensorLayer2In_ty, bn9_weightsLayer2_ty, bn9_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn9_conv2dk3_dw_stride1_relu_ui8_ui8 = external_func("bn9_conv2dk3_dw_stride1_relu_ui8_ui8",inputs=[bn9_tensorLayer2In_ty,bn9_tensorLayer2In_ty,bn9_tensorLayer2In_ty, bn9_weightsLayer2_ty, bn9_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn9_conv2dk1_skip_ui8_i8_i8 = external_func("bn9_conv2dk1_skip_ui8_i8_i8",inputs=[bn9_tensorLayer3In_ty, bn9_weightsLayer3_ty, bn9_tensorLayer3Out_ty, bn9_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        bn9_conv2dk1_ui8_i8 = external_func("bn9_conv2dk1_ui8_i8",inputs=[bn9_tensorLayer3In_ty, bn9_weightsLayer3_ty, bn9_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # # AIE Core Function declarations
+        # bn9_conv2dk1_relu_i8_ui8 = external_func("bn9_conv2dk1_relu_i8_ui8",inputs=[bn9_tensorLayer1In_ty, bn9_weightsLayer1_ty, bn9_tensorLayer1Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn9_conv2dk3_dw_stride2_relu_ui8_ui8 = external_func("bn9_conv2dk3_dw_stride2_relu_ui8_ui8",inputs=[bn9_tensorLayer2In_ty,bn9_tensorLayer2In_ty,bn9_tensorLayer2In_ty, bn9_weightsLayer2_ty, bn9_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn9_conv2dk3_dw_stride1_relu_ui8_ui8 = external_func("bn9_conv2dk3_dw_stride1_relu_ui8_ui8",inputs=[bn9_tensorLayer2In_ty,bn9_tensorLayer2In_ty,bn9_tensorLayer2In_ty, bn9_weightsLayer2_ty, bn9_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn9_conv2dk1_skip_ui8_i8_i8 = external_func("bn9_conv2dk1_skip_ui8_i8_i8",inputs=[bn9_tensorLayer3In_ty, bn9_weightsLayer3_ty, bn9_tensorLayer3Out_ty, bn9_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # bn9_conv2dk1_ui8_i8 = external_func("bn9_conv2dk1_ui8_i8",inputs=[bn9_tensorLayer3In_ty, bn9_weightsLayer3_ty, bn9_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
 
-        bn9_objectArchiveName = "bn9_combined_con2dk1fusedrelu_conv2dk3dwstride%s_conv2dk1%s.a" % (bn9_depthWiseStride, "skip" if (bn9_withSkip) else "")
+        # bn9_objectArchiveName = "bn9_combined_con2dk1fusedrelu_conv2dk3dwstride%s_conv2dk1%s.a" % (bn9_depthWiseStride, "skip" if (bn9_withSkip) else "")
 
-        bottleneckACore("bn9", ComputeTile23, act_bn8_bn9, bn9_wts_OF_L3L1, act_out, rtpComputeTile23, bn9_objectArchiveName, 
-                        bn9_conv2dk1_relu_i8_ui8, bn9_conv2dk3_dw_stride1_relu_ui8_ui8, bn9_conv2dk3_dw_stride2_relu_ui8_ui8, bn9_conv2dk1_ui8_i8, bn9_conv2dk1_skip_ui8_i8_i8, 
-                        bn9_tensorLayer1Out_ty, bn9_tensorLayer2Out_ty, tensorL9_1InW, tensorL9_1InH, tensorL9_1InC, bn9_depthWiseStride, bn9_depthWiseChannels, tensorL9_3OutC, bn9_withSkip)
+        # bottleneckACore("bn9", ComputeTile23, act_bn8_bn9, bn9_wts_OF_L3L1, act_out, rtpComputeTile23, bn9_objectArchiveName, 
+        #                 bn9_conv2dk1_relu_i8_ui8, bn9_conv2dk3_dw_stride1_relu_ui8_ui8, bn9_conv2dk3_dw_stride2_relu_ui8_ui8, bn9_conv2dk1_ui8_i8, bn9_conv2dk1_skip_ui8_i8_i8, 
+        #                 bn9_tensorLayer1Out_ty, bn9_tensorLayer2Out_ty, tensorL9_1InW, tensorL9_1InH, tensorL9_1InC, bn9_depthWiseStride, bn9_depthWiseChannels, tensorL9_3OutC, bn9_withSkip)
 
          # instruction stream generation
         activationsInSize32b = (tensorInW * tensorInH * tensorInC) // 4

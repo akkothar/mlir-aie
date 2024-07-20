@@ -4,14 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 # Copyright (C) 2024, Advanced Micro Devices, Inc.
-import sys
-import onnx
-import torchvision
-from torchvision.io import read_image
-from torchvision.models import resnet50, ResNet50_Weights
 import torch
-from torchvision import transforms
-from PIL import Image
 import torch.nn as nn
 import sys
 import math
@@ -21,7 +14,6 @@ import os
 import numpy as np
 from aie.utils.xrt import setup_aie, extract_trace, write_out_trace, execute
 import aie.utils.test as test_utils
-import torch.utils.data as data_utils
 from dolphin import print_dolphin,print_three_dolphins
 from brevitas.nn import QuantConv2d, QuantIdentity, QuantReLU
 from brevitas.quant.fixed_point import (
@@ -29,14 +21,7 @@ from brevitas.quant.fixed_point import (
     Int8WeightPerTensorFixedPoint,
     Uint8ActPerTensorFixedPoint,
 )
-from brevitas_examples.imagenet_classification.ptq.ptq_common import calibrate
-def convert_to_numpy(array):
-    if isinstance(array, np.ndarray):
-        return array
-    elif isinstance(array, torch.Tensor):
-        return array.cpu().numpy()
-    else:
-        raise TypeError("Unsupported array type")
+from utils import convert_to_numpy
 torch.use_deterministic_algorithms(True)
 torch.manual_seed(0)
 
@@ -256,13 +241,13 @@ bneck_9_InW3 = bneck_9_InW2
 bneck_9_InH3 = bneck_9_InH2
 bneck_9_OutC3 = bneck_9_tensorOutC
 
-tensorOutW = bneck_3_InW3 
-tensorOutH = bneck_3_InH3
-tensorOutC = bneck_3_OutC3
+tensorOutW = bneck_1_InW3 
+tensorOutH = bneck_1_InH3
+tensorOutC = bneck_1_OutC3
 
-tensorOutW = bneck_9_InW3 
-tensorOutH = bneck_9_InH3
-tensorOutC = bneck_9_OutC3
+# tensorOutW = bneck_9_InW3 
+# tensorOutH = bneck_9_InH3
+# tensorOutC = bneck_9_OutC3
 
 InC_vec =  math.floor(tensorInC/vectorSize)
 OutC_vec =  math.floor(tensorOutC/vectorSize)
@@ -307,50 +292,11 @@ def main(opts):
     shape_out = (tensorOutH, OutC_vec, tensorOutW, vectorSize) # HCWC8
     shape_out_final = (OutC_vec*vectorSize, tensorOutH, tensorOutW) # CHW
     
+    
     # ------------------------------------------------------
     # Initialize activation, weights, scaling factor for int8 model
     # ------------------------------------------------------
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-   # Transformations
-    transform = transforms.Compose([
-        transforms.Resize((tensorInH, tensorInW)),
-        transforms.ToTensor(),
-    ])
-    # CIFAR-10 dataset
-    data_dir = "data"
-    # Load CIFAR10 dataset
-
-    test_dataset = torchvision.datasets.CIFAR10(
-        root=data_dir, train=False, transform=transform, download=True)
-
-    # Custom dataset class to adjust input channels
-    # Custom dataset class to adjust input channels
-    class CustomCIFAR10(torchvision.datasets.CIFAR10):
-        def __init__(self, *args, **kwargs):
-            super(CustomCIFAR10, self).__init__(*args, **kwargs)
-
-        def __getitem__(self, index):
-            img, target = self.data[index], self.targets[index]
-            img = transforms.functional.to_pil_image(img)  # Convert to PIL Image
-            img = transform(img)  # Apply defined transformations
-
-            # Repeat or duplicate RGB channels to fill 16 channels
-            img_channels = img.shape[0]
-            if img_channels < 16:
-                img = torch.cat([img] * 6, dim=0)
-            # Ensure the number of channels matches exactly 16
-            img = img[:16, :, :]
-
-            return img, target
-
-    # Load CIFAR10 dataset using CustomCIFAR10
-    test_dataset = CustomCIFAR10(
-        root=data_dir, train=False, transform=transform, download=True)
-
-    # Create a subset and DataLoader for the single image
-    indices = torch.arange(32)
-    val_sub = data_utils.Subset(test_dataset, indices)
-    calib_loader = torch.utils.data.DataLoader(dataset=val_sub, batch_size=32, shuffle=False)
+    input = torch.randn(1, InC_vec*vectorSize, tensorInH, tensorInW)
     
     # ------------------------------------------------------
     # Get device, load the xclbin & kernel and register them
@@ -532,14 +478,10 @@ def main(opts):
                 bit_width=8,
                 return_quant_tensor=True,
             )
-            self.bn2_quant_id = QuantIdentity(
-                act_quant=Int8ActPerTensorFixedPoint,
-                bit_width=8,
-                return_quant_tensor=True,
-            )
+          
             # force alignment between scales going into add
-            self.bn2_quant_id.act_quant.fused_activation_quant_proxy.tensor_quant.scaling_impl = self.bn1_quant_id_2.act_quant.fused_activation_quant_proxy.tensor_quant.scaling_impl
-            self.bn2_quant_id.act_quant.fused_activation_quant_proxy.tensor_quant.int_scaling_impl = self.bn1_quant_id_2.act_quant.fused_activation_quant_proxy.tensor_quant.int_scaling_impl
+            # self.bn2_quant_id.act_quant.fused_activation_quant_proxy.tensor_quant.scaling_impl = self.bn1_quant_id_2.act_quant.fused_activation_quant_proxy.tensor_quant.scaling_impl
+            # self.bn2_quant_id.act_quant.fused_activation_quant_proxy.tensor_quant.int_scaling_impl = self.bn1_quant_id_2.act_quant.fused_activation_quant_proxy.tensor_quant.int_scaling_impl
 
 # bn3
             self.bn3_quant_conv1 = QuantConv2d(
@@ -912,84 +854,84 @@ def main(opts):
             out = self.bn1_quant_conv3(out)
             out_q = self.bn1_quant_id_2(out)
 
-            # # # # # bn2
-            out = self.bn2_quant_conv1(out_q)
-            out = self.bn2_quant_relu1(out)
-            out = self.bn2_quant_conv2(out)
-            out = self.bn2_quant_relu2(out)
-            out = self.bn2_quant_conv3(out)
-            out = self.bn2_quant_id(out)
-            out = out+out_q
-            out = self.bn2_add(out)
+            # # # # # # # bn2
+            # out = self.bn2_quant_conv1(out_q)
+            # out = self.bn2_quant_relu1(out)
+            # out = self.bn2_quant_conv2(out)
+            # out = self.bn2_quant_relu2(out)
+            # out = self.bn2_quant_conv3(out)
+            # out = self.bn1_quant_id_2(out)
+            # out = out+out_q
+            # out = self.bn2_add(out)
 
-            # # # # # bn3
-            out = self.bn3_quant_conv1(out)
-            out = self.bn3_quant_relu1(out)
-            out = self.bn3_quant_conv2(out)
-            out = self.bn3_quant_relu2(out)
-            out = self.bn3_quant_conv3(out)
-            out_q = self.bn3_quant_id_2(out)
+            # # # # # # bn3
+            # out = self.bn3_quant_conv1(out)
+            # out = self.bn3_quant_relu1(out)
+            # out = self.bn3_quant_conv2(out)
+            # out = self.bn3_quant_relu2(out)
+            # out = self.bn3_quant_conv3(out)
+            # out_q = self.bn3_quant_id_2(out)
 
-            # # # # # bn4
-            out = self.bn4_quant_conv1(out_q)
-            out = self.bn4_quant_relu1(out)
-            out = self.bn4_quant_conv2(out)
-            out = self.bn4_quant_relu2(out)
-            out = self.bn4_quant_conv3(out)
-            out = self.bn3_quant_id_2(out)
-            out = out+out_q
-            out_q = self.bn4_add(out)
+            # # # # # # bn4
+            # out = self.bn4_quant_conv1(out_q)
+            # out = self.bn4_quant_relu1(out)
+            # out = self.bn4_quant_conv2(out)
+            # out = self.bn4_quant_relu2(out)
+            # out = self.bn4_quant_conv3(out)
+            # out = self.bn3_quant_id_2(out)
+            # out = out+out_q
+            # out_q = self.bn4_add(out)
 
-            # # # # bn5
-            out = self.bn5_quant_conv1(out_q)
-            out = self.bn5_quant_relu1(out)
-            out = self.bn5_quant_conv2(out)
-            out = self.bn5_quant_relu2(out)
-            out = self.bn5_quant_conv3(out)
-            out = self.bn4_add(out)
-            out = out+out_q
-            out = self.bn5_add(out)
+            # # # # # bn5
+            # out = self.bn5_quant_conv1(out_q)
+            # out = self.bn5_quant_relu1(out)
+            # out = self.bn5_quant_conv2(out)
+            # out = self.bn5_quant_relu2(out)
+            # out = self.bn5_quant_conv3(out)
+            # out = self.bn4_add(out)
+            # out = out+out_q
+            # out = self.bn5_add(out)
             
-            # bn6
-            out = self.bn6_quant_conv1(out)
-            out = self.bn6_quant_relu1(out)
-            out = self.bn6_quant_conv2(out)
-            out = self.bn6_quant_relu2(out)
-            out = self.bn6_quant_conv3(out)
-            out_q = self.bn6_quant_id_2(out)
+            # # bn6
+            # out = self.bn6_quant_conv1(out)
+            # out = self.bn6_quant_relu1(out)
+            # out = self.bn6_quant_conv2(out)
+            # out = self.bn6_quant_relu2(out)
+            # out = self.bn6_quant_conv3(out)
+            # out_q = self.bn6_quant_id_2(out)
 
             
-            # # bn7
-            out = self.bn7_quant_conv1(out_q)
-            out = self.bn7_quant_relu1(out)
-            out = self.bn7_quant_conv2(out)
-            out = self.bn7_quant_relu2(out)
-            out = self.bn7_quant_conv3(out)
-            out = self.bn6_quant_id_2(out)
-            out = out+out_q
-            out_q = self.bn7_add(out)
+            # # # bn7
+            # out = self.bn7_quant_conv1(out_q)
+            # out = self.bn7_quant_relu1(out)
+            # out = self.bn7_quant_conv2(out)
+            # out = self.bn7_quant_relu2(out)
+            # out = self.bn7_quant_conv3(out)
+            # out = self.bn6_quant_id_2(out)
+            # out = out+out_q
+            # out_q = self.bn7_add(out)
 
-            # bn8
+            # # bn8
 
-            out = self.bn8_quant_conv1(out_q)
-            out = self.bn8_quant_relu1(out)
-            out = self.bn8_quant_conv2(out)
-            out = self.bn8_quant_relu2(out)
-            out = self.bn8_quant_conv3(out)
-            out = self.bn7_add(out)
-            out = out+out_q
-            out_q = self.bn8_add(out)
+            # out = self.bn8_quant_conv1(out_q)
+            # out = self.bn8_quant_relu1(out)
+            # out = self.bn8_quant_conv2(out)
+            # out = self.bn8_quant_relu2(out)
+            # out = self.bn8_quant_conv3(out)
+            # out = self.bn7_add(out)
+            # out = out+out_q
+            # out_q = self.bn8_add(out)
 
-            # bn9
+            # # bn9
 
-            out = self.bn9_quant_conv1(out_q)
-            out = self.bn9_quant_relu1(out)
-            out = self.bn9_quant_conv2(out)
-            out = self.bn9_quant_relu2(out)
-            out = self.bn9_quant_conv3(out)
-            out = self.bn8_add(out)
-            out = out+out_q
-            out_q = self.bn9_add(out)
+            # out = self.bn9_quant_conv1(out_q)
+            # out = self.bn9_quant_relu1(out)
+            # out = self.bn9_quant_conv2(out)
+            # out = self.bn9_quant_relu2(out)
+            # out = self.bn9_quant_conv3(out)
+            # out = self.bn8_add(out)
+            # out = out+out_q
+            # out = self.bn9_add(out)
             return out_q
 
     quant_model = QuantBottleneckA(in_planes=tensorInC, 
@@ -1002,30 +944,52 @@ def main(opts):
                                             bn7_expand=bneck_7_OutC1,bn7_project=bneck_7_OutC3, 
                                             bn8_expand=bneck_8_OutC1,bn8_project=bneck_8_OutC3,
                                             bn9_expand=bneck_9_OutC1,bn9_project=bneck_9_OutC3)
-    quant_model.eval()
 
-    calibrate([(torch.rand(1, 16, 56, 56), 1) for _ in range(5)], quant_model)
-    # calibrate([(torch.rand(1, 64, 56, 56), 1) for _ in range(5)], quant_model.bn1_quant_conv2)
-    # calibrate([(torch.rand(1, 64, 56, 56), 1) for _ in range(5)], quant_model.bn1_quant_conv3)
 
-    # calibrate([(torch.rand(1, 24, 56, 56), 1) for _ in range(5)], quant_model.bn2_quant_conv1)
-    # calibrate([(torch.rand(1, 72, 56, 56), 1) for _ in range(5)], quant_model.bn2_quant_conv2)
-    # calibrate([(torch.rand(1, 72, 56, 56), 1) for _ in range(5)], quant_model.bn2_quant_conv3)
+    from utils import ExpandChannels
+    from brevitas_examples.imagenet_classification.ptq.ptq_common import calibrate
+    import torchvision
+    import torch.utils.data as data_utils
+    from torchvision import transforms
+    # Define the image preprocessing pipeline
+    transform = transforms.Compose([
+        transforms.Resize(128),
+        transforms.CenterCrop(112),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ExpandChannels(target_channels=16)  # Expand to 80 channels
+    ])
+    data_dir = "data"
+    
+    # test_dataset = torchvision.datasets.ImageNet(
+    #     root=data_dir, train=False, transform=transform, download=True)
+    
+    # # Create a subset and DataLoader for the single image
+    # indices = torch.arange(32)
+    # val_sub = data_utils.Subset(test_dataset, indices)
+    # calib_loader = torch.utils.data.DataLoader(dataset=val_sub, batch_size=32, shuffle=False)
+    
+    src_data="/group/xrlabs2/imagenet/calibration"
+    datset=torchvision.datasets.ImageFolder(
+        src_data,
+        transform)
+    indices = torch.arange(4)
+    val_sub = data_utils.Subset(datset, indices)
+    calib_loader = torch.utils.data.DataLoader(dataset=val_sub, batch_size=32, shuffle=False)
+    calibrate(calib_loader, quant_model)
 
-    # calibrate([(torch.rand(1, 24, 56, 56), 1) for _ in range(5)], quant_model.bn3_quant_conv1)
-    # calibrate([(torch.rand(1, 72, 56, 56), 1) for _ in range(5)], quant_model.bn3_quant_conv2)
-    # calibrate([(torch.rand(1, 72, 56, 56), 1) for _ in range(5)], quant_model.bn3_quant_conv3)
-    # calibrate(calib_loader, quant_model)
+    # calibrate([(torch.rand(1, 16, 56, 56), 1) for _ in range(5)], quant_model)
+
     # from brevitas.fx import brevitas_symbolic_trace
     # model = brevitas_symbolic_trace(quant_model)
     # print(model.graph)
     # print(model)
-    
-    input = torch.ones(1, InC_vec*vectorSize, tensorInH, tensorInW)
+    quant_model.eval()
+   
 
     q_bottleneck_out = quant_model(input)
     golden_output = q_bottleneck_out.int(float_datatype=True).data.numpy().astype(dtype_out)
-    
+    print("Golden::Brevitas::", golden_output)
     q_inp = quant_model.quant_id_1(input)
     int_inp = q_inp.int(float_datatype=True)
 
@@ -1090,10 +1054,9 @@ def main(opts):
     
 
     block_2_inp_scale1= block_1_final_scale
-
+ 
     block_2_relu_1 = quant_model.bn2_quant_relu1.quant_act_scale()
     block_2_relu_2 = quant_model.bn2_quant_relu2.quant_act_scale()
-    block_2_quant_id = quant_model.bn2_quant_id.quant_act_scale()
     block_2_skip_add = quant_model.bn2_add.quant_act_scale()
 
     block_2_weight_scale1 = quant_model.bn2_quant_conv1.quant_weight_scale()
@@ -1106,10 +1069,10 @@ def main(opts):
         block_2_relu_1 * block_2_weight_scale2 / block_2_relu_2
     )  
     block_2_combined_scale3 = -torch.log2(
-        block_2_relu_2 * block_2_weight_scale3/block_2_quant_id
+        block_2_relu_2 * block_2_weight_scale3/block_2_inp_scale1
     )   
     block_2_combined_scale_skip = -torch.log2(
-        block_2_quant_id / block_2_skip_add
+        block_2_inp_scale1 / block_2_skip_add
     )  # After addition | clip -128-->127
 
 
@@ -1646,7 +1609,7 @@ def main(opts):
         print("\nFailed.\n")
         for index in different_indices:
             idx_tuple = tuple(index)
-            print(f"Index {idx_tuple}: GOLDEN has {golden_output[idx_tuple]}, AIE has {ofm_mem_fmt_out[idx_tuple]}, diff {np.abs(golden[idx_tuple] - ofm_mem_fmt_out[idx_tuple])}")
+            # print(f"Index {idx_tuple}: GOLDEN has {golden_output[idx_tuple]}, AIE has {ofm_mem_fmt_out[idx_tuple]}, diff {np.abs(golden[idx_tuple] - ofm_mem_fmt_out[idx_tuple])}")
         exit(-1)
 
 
