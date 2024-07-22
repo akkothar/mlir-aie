@@ -38,6 +38,7 @@ def mobilenetV3_bn_0_1_2_3_4_5_6_7_8_9(tileColIndex = 0,tensorInW = 56, tensorIn
 
     
 # bn0
+
     tensorL0_2InC = tensorInC 
     tensorL0_2InW = tensorInW
     tensorL0_2InH = tensorInH
@@ -178,14 +179,17 @@ def mobilenetV3_bn_0_1_2_3_4_5_6_7_8_9(tileColIndex = 0,tensorInW = 56, tensorIn
     tensorL9_3OutC = bn9_tensorOutC
     # final output
     
-
+    # tensorInC=tensorL0_1InC
+    # tensorInW=tensorL0_1InW
+    # tensorInH=tensorL0_1InH
+    
     tensorOutW = tensorL9_3InW
     tensorOutH = tensorL9_3InH
     tensorOutC = tensorL9_3OutC
     
-    tensorOutW = tensorL1_3InW
-    tensorOutH = tensorL1_3InH
-    tensorOutC = tensorL1_3OutC
+    tensorOutW = tensorL2_3InW
+    tensorOutH = tensorL2_3InH
+    tensorOutC = tensorL2_3OutC
 
     @device(AIEDevice.npu1_3col)
     def device_body():
@@ -256,13 +260,13 @@ def mobilenetV3_bn_0_1_2_3_4_5_6_7_8_9(tileColIndex = 0,tensorInW = 56, tensorIn
         # Set up compute tiles
         rtpComputeTile03 = Buffer(ComputeTile03, [16], T.i32(), "rtp03") #bn0+bn1
         rtpComputeTile04 = Buffer(ComputeTile04, [16], T.i32(), "rtp04") #bn2
-        rtpComputeTile05 = Buffer(ComputeTile05, [16], T.i32(), "rtp05") #bn3
-        rtpComputeTile15 = Buffer(ComputeTile15, [16], T.i32(), "rtp15") #bn4
-        rtpComputeTile14 = Buffer(ComputeTile14, [16], T.i32(), "rtp14") #bn5
-        rtpComputeTile12 = Buffer(ComputeTile12, [16], T.i32(), "rtp12") #bn6
-        rtpComputeTile13 = Buffer(ComputeTile13, [16], T.i32(), "rtp13") #bn7
-        rtpComputeTile22 = Buffer(ComputeTile22, [16], T.i32(), "rtp22") #bn8
-        rtpComputeTile23 = Buffer(ComputeTile23, [16], T.i32(), "rtp23") #bn9
+        # rtpComputeTile05 = Buffer(ComputeTile05, [16], T.i32(), "rtp05") #bn3
+        # rtpComputeTile15 = Buffer(ComputeTile15, [16], T.i32(), "rtp15") #bn4
+        # rtpComputeTile14 = Buffer(ComputeTile14, [16], T.i32(), "rtp14") #bn5
+        # rtpComputeTile12 = Buffer(ComputeTile12, [16], T.i32(), "rtp12") #bn6
+        # rtpComputeTile13 = Buffer(ComputeTile13, [16], T.i32(), "rtp13") #bn7
+        # rtpComputeTile22 = Buffer(ComputeTile22, [16], T.i32(), "rtp22") #bn8
+        # rtpComputeTile23 = Buffer(ComputeTile23, [16], T.i32(), "rtp23") #bn9
         # AIE-array data movement with object fifos
         
         # Input
@@ -291,7 +295,7 @@ def mobilenetV3_bn_0_1_2_3_4_5_6_7_8_9(tileColIndex = 0,tensorInW = 56, tensorIn
         object_fifo_link(wts_OF_11_L3L2, [bn6_wts_OF_L3L1,bn7_wts_OF_L3L1,bn8_wts_OF_L3L1,bn9_wts_OF_L3L1],[],[0,bn6_weights_size,bn6_weights_size+bn7_weights_size,bn6_weights_size+bn7_weights_size+bn8_weights_size])
 
 
-        # # ******************************************************************bn0+bn1******************************************************************
+        # # # ******************************************************************bn0+bn1******************************************************************
         bn0_tensorLayer2In_ty = MemRefType.get((tensorL0_2InW, 1, tensorL0_2InC), uint8_ty)
         bn0_weightsLayer2_ty = MemRefType.get((3 * 3 * tensorL0_3InC * 1,), int8_ty)
         bn0_tensorLayer2Out_ty = MemRefType.get((tensorL0_3InW, 1, tensorL0_3InC), uint8_ty)
@@ -330,49 +334,49 @@ def mobilenetV3_bn_0_1_2_3_4_5_6_7_8_9(tileColIndex = 0,tensorInW = 56, tensorIn
         bn1_tensorLayer1_3Out_ty = MemRefType.get((tensorL1_3InW, 1, tensorL1_3OutC),int8_ty)
 
         # between compute tiles
-        # act_bn01_bn2 = object_fifo("act_bn01_bn2", ComputeTile03, ComputeTile04, [3, 2], bn1_tensorLayer1_3Out_ty)
-        act_out = object_fifo("act_out", ComputeTile03, ShimTile10, 1, bn1_tensorLayer1_3Out_ty)
-        bottleneckAFused("bn01", ComputeTile03, act_in, bn0_1_wts_OF_L3L1, act_out, rtpComputeTile03, bn01_objectArchiveName,
+        act_bn01_bn2 = object_fifo("act_bn01_bn2", ComputeTile03, ComputeTile04, [3, 2], bn1_tensorLayer1_3Out_ty)
+        # act_out = object_fifo("act_out", ComputeTile03, ShimTile10, 1, bn1_tensorLayer1_3Out_ty)
+        bottleneckAFused("bn01", ComputeTile03, act_in, bn0_1_wts_OF_L3L1, act_bn01_bn2, rtpComputeTile03, bn01_objectArchiveName,
                          bn0_conv2dk3_dw_stride1_relu_ui8_ui8, bn0_conv2dk1_skip_ui8_ui8_i8, bn1_conv2dk1_relu_i8_ui8, bn1_conv2dk3_dw_stride2_relu_ui8_ui8, bn1_conv2dk1_ui8_i8,
                          bn0_tensorLayer0_2Out_ty, bn0_tensorLayer0_3Out_ty,bn1_tensorLayer1_1Out_ty,bn1_tensorLayer1_2Out_ty, tensorL0_2InW, tensorL0_2InH, tensorL0_2InC,  bn1_depthWiseStride, bn1_depthWiseChannels, tensorL1_3OutC)
 
-        # # # # # ******************************************************************bn2******************************************************************
-        # #  # temporary types for tensor to enable intial test
-        # bn2_tensorLayer1In_ty = MemRefType.get((tensorL2_1InW, 1, tensorL2_1InC), int8_ty)
-        # bn2_weightsLayer1_ty = MemRefType.get((1 * 1 * tensorL2_1InC * tensorL2_2InC,), int8_ty)
-        # bn2_tensorLayer1Out_ty = MemRefType.get((tensorL2_2InW, 1, tensorL2_2InC), uint8_ty)
+        # # # # ******************************************************************bn2******************************************************************
+        #  # temporary types for tensor to enable intial test
+        bn2_tensorLayer1In_ty = MemRefType.get((tensorL2_1InW, 1, tensorL2_1InC), int8_ty)
+        bn2_weightsLayer1_ty = MemRefType.get((1 * 1 * tensorL2_1InC * tensorL2_2InC,), int8_ty)
+        bn2_tensorLayer1Out_ty = MemRefType.get((tensorL2_2InW, 1, tensorL2_2InC), uint8_ty)
     
-        # bn2_tensorLayer2In_ty = bn2_tensorLayer1Out_ty
-        # bn2_weightsLayer2_ty = MemRefType.get((3 * 3 * tensorL2_3InC * 1,), int8_ty)
-        # bn2_tensorLayer2Out_ty = MemRefType.get((tensorL2_3InW, 1, tensorL2_3InC), uint8_ty)
+        bn2_tensorLayer2In_ty = bn2_tensorLayer1Out_ty
+        bn2_weightsLayer2_ty = MemRefType.get((3 * 3 * tensorL2_3InC * 1,), int8_ty)
+        bn2_tensorLayer2Out_ty = MemRefType.get((tensorL2_3InW, 1, tensorL2_3InC), uint8_ty)
 
-        # bn2_tensorLayer3In_ty = bn2_tensorLayer2Out_ty
-        # bn2_weightsLayer3_ty = MemRefType.get((1 * 1 * tensorL2_3InC * tensorL2_3OutC,), int8_ty)
-        # bn2_tensorLayer3Out_ty = MemRefType.get((tensorL2_3InW, 1, tensorL2_3OutC),int8_ty)
+        bn2_tensorLayer3In_ty = bn2_tensorLayer2Out_ty
+        bn2_weightsLayer3_ty = MemRefType.get((1 * 1 * tensorL2_3InC * tensorL2_3OutC,), int8_ty)
+        bn2_tensorLayer3Out_ty = MemRefType.get((tensorL2_3InW, 1, tensorL2_3OutC),int8_ty)
         
-        # # AIE Core Function declarations
-        # bn2_conv2dk1_relu_i8_ui8 = external_func("bn2_conv2dk1_relu_i8_ui8",inputs=[bn2_tensorLayer1In_ty, bn2_weightsLayer1_ty, bn2_tensorLayer1Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        # bn2_conv2dk3_dw_stride2_relu_ui8_ui8 = external_func("bn2_conv2dk3_dw_stride2_relu_ui8_ui8",inputs=[bn2_tensorLayer2In_ty,bn2_tensorLayer2In_ty,bn2_tensorLayer2In_ty, bn2_weightsLayer2_ty, bn2_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        # bn2_conv2dk3_dw_stride1_relu_ui8_ui8 = external_func("bn2_conv2dk3_dw_stride1_relu_ui8_ui8",inputs=[bn2_tensorLayer2In_ty,bn2_tensorLayer2In_ty,bn2_tensorLayer2In_ty, bn2_weightsLayer2_ty, bn2_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
-        # bn2_conv2dk1_skip_ui8_i8_i8 = external_func("bn2_conv2dk1_skip_ui8_i8_i8",inputs=[bn2_tensorLayer3In_ty, bn2_weightsLayer3_ty, bn2_tensorLayer3Out_ty, bn2_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        # AIE Core Function declarations
+        bn2_conv2dk1_relu_i8_ui8 = external_func("bn2_conv2dk1_relu_i8_ui8",inputs=[bn2_tensorLayer1In_ty, bn2_weightsLayer1_ty, bn2_tensorLayer1Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        bn2_conv2dk3_dw_stride2_relu_ui8_ui8 = external_func("bn2_conv2dk3_dw_stride2_relu_ui8_ui8",inputs=[bn2_tensorLayer2In_ty,bn2_tensorLayer2In_ty,bn2_tensorLayer2In_ty, bn2_weightsLayer2_ty, bn2_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        bn2_conv2dk3_dw_stride1_relu_ui8_ui8 = external_func("bn2_conv2dk3_dw_stride1_relu_ui8_ui8",inputs=[bn2_tensorLayer2In_ty,bn2_tensorLayer2In_ty,bn2_tensorLayer2In_ty, bn2_weightsLayer2_ty, bn2_tensorLayer2Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        bn2_conv2dk1_skip_ui8_i8_i8 = external_func("bn2_conv2dk1_skip_ui8_i8_i8",inputs=[bn2_tensorLayer3In_ty, bn2_weightsLayer3_ty, bn2_tensorLayer3Out_ty, bn2_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty, int32_ty])
         
-        # bn2_conv2dk1_ui8_i8 = external_func("bn2_conv2dk1_ui8_i8",inputs=[bn2_tensorLayer3In_ty, bn2_weightsLayer3_ty, bn2_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
+        bn2_conv2dk1_ui8_i8 = external_func("bn2_conv2dk1_ui8_i8",inputs=[bn2_tensorLayer3In_ty, bn2_weightsLayer3_ty, bn2_tensorLayer3Out_ty, int32_ty, int32_ty, int32_ty, int32_ty])
 
-        # # Compute tile 
-        # bn2_objectArchiveName = "bn2_combined_con2dk1fusedrelu_conv2dk3dwstride%s_conv2dk1%s.a" % (bn2_depthWiseStride, "skip" if (bn2_withSkip) else "")
-        # bn2_tensorLayer1Out_ty = MemRefType.get((tensorL2_2InW, 1, tensorL2_2InC),uint8_ty)
-        # bn2_tensorLayer2Out_ty = MemRefType.get((tensorL2_3InW, 1, tensorL2_3InC),uint8_ty)
-        # bn2_tensorLayer3Out_ty = MemRefType.get((tensorL2_3InW, 1, tensorL2_3OutC),int8_ty)        
+        # Compute tile 
+        bn2_objectArchiveName = "bn2_combined_con2dk1fusedrelu_conv2dk3dwstride%s_conv2dk1%s.a" % (bn2_depthWiseStride, "skip" if (bn2_withSkip) else "")
+        bn2_tensorLayer1Out_ty = MemRefType.get((tensorL2_2InW, 1, tensorL2_2InC),uint8_ty)
+        bn2_tensorLayer2Out_ty = MemRefType.get((tensorL2_3InW, 1, tensorL2_3InC),uint8_ty)
+        bn2_tensorLayer3Out_ty = MemRefType.get((tensorL2_3InW, 1, tensorL2_3OutC),int8_ty)        
 
        
+        # act_in = object_fifo("act_in", ShimTile00, ComputeTile04, [3,3], bn1_tensorLayer1_3Out_ty)
+        # between compute tiles
+        # act_bn2_bn3 = object_fifo("act_bn2_bn3", ComputeTile04, ComputeTile05, [3, 2], bn2_tensorLayer3Out_ty)
+        act_out = object_fifo("act_out", ComputeTile04, [ShimTile10], 1, bn2_tensorLayer3Out_ty)
 
-        # # between compute tiles
-        # # act_bn2_bn3 = object_fifo("act_bn2_bn3", ComputeTile04, ComputeTile05, [3, 2], bn2_tensorLayer3Out_ty)
-        # act_out = object_fifo("act_out", ComputeTile04, [ShimTile10], 1, bn2_tensorLayer3Out_ty)
-
-        # bottleneckACore("bn2", ComputeTile04, act_bn01_bn2, bn2_wts_OF_L3L1, act_out, rtpComputeTile04, bn2_objectArchiveName,
-        #                 bn2_conv2dk1_relu_i8_ui8, bn2_conv2dk3_dw_stride1_relu_ui8_ui8, bn2_conv2dk3_dw_stride2_relu_ui8_ui8, bn2_conv2dk1_ui8_i8, bn2_conv2dk1_skip_ui8_i8_i8,
-        #                 bn2_tensorLayer1Out_ty, bn2_tensorLayer2Out_ty, tensorL2_1InW, tensorL2_1InH, tensorL2_1InC,  bn2_depthWiseStride, bn2_depthWiseChannels, tensorL2_3OutC, bn2_withSkip,bn2_scaleFactor1, bn2_scaleFactor2, bn2_scaleFactor3,  bn2_scaleFactorAdd)
+        bottleneckACore("bn2", ComputeTile04, act_bn01_bn2, bn2_wts_OF_L3L1, act_out, rtpComputeTile04, bn2_objectArchiveName,
+                        bn2_conv2dk1_relu_i8_ui8, bn2_conv2dk3_dw_stride1_relu_ui8_ui8, bn2_conv2dk3_dw_stride2_relu_ui8_ui8, bn2_conv2dk1_ui8_i8, bn2_conv2dk1_skip_ui8_i8_i8,
+                        bn2_tensorLayer1Out_ty, bn2_tensorLayer2Out_ty, tensorL2_1InW, tensorL2_1InH, tensorL2_1InC,  bn2_depthWiseStride, bn2_depthWiseChannels, tensorL2_3OutC, bn2_withSkip,bn2_scaleFactor1, bn2_scaleFactor2, bn2_scaleFactor3,  bn2_scaleFactorAdd)
 
 
         # # # # # ******************************************************************bn3******************************************************************
@@ -613,7 +617,7 @@ def mobilenetV3_bn_0_1_2_3_4_5_6_7_8_9(tileColIndex = 0,tensorInW = 56, tensorIn
         @FuncOp.from_py_func(activationsInL3_ty, weightsInL3_ty, activationsOutL3_ty)
         def sequence(inputFromL3, weightsFromL3, outputToL3):
             
-            # bn0+1
+            # # bn0+1
             NpuWriteRTPOp("rtp03", col=tileColIndex, row=3, index=0, value=bn0_scaleFactor2)
             NpuWriteRTPOp("rtp03", col=tileColIndex, row=3, index=1, value=bn0_scaleFactor3)
             NpuWriteRTPOp("rtp03", col=tileColIndex, row=3, index=2, value=bn0_scaleFactorAdd)
@@ -627,44 +631,44 @@ def mobilenetV3_bn_0_1_2_3_4_5_6_7_8_9(tileColIndex = 0,tensorInW = 56, tensorIn
             NpuWriteRTPOp("rtp04", col=tileColIndex, row=4, index=2, value=bn2_scaleFactor3)
             NpuWriteRTPOp("rtp04", col=tileColIndex, row=4, index=3, value=bn2_scaleFactorAdd)
 
-            # bn3
-            NpuWriteRTPOp("rtp05", col=tileColIndex, row=5, index=0, value=bn3_scaleFactor1)
-            NpuWriteRTPOp("rtp05", col=tileColIndex, row=5, index=1, value=bn3_scaleFactor2)
-            NpuWriteRTPOp("rtp05", col=tileColIndex, row=5, index=2, value=bn3_scaleFactor3)
-            NpuWriteRTPOp("rtp05", col=tileColIndex, row=5, index=3, value=bn3_scaleFactorAdd)
+            # # bn3
+            # NpuWriteRTPOp("rtp05", col=tileColIndex, row=5, index=0, value=bn3_scaleFactor1)
+            # NpuWriteRTPOp("rtp05", col=tileColIndex, row=5, index=1, value=bn3_scaleFactor2)
+            # NpuWriteRTPOp("rtp05", col=tileColIndex, row=5, index=2, value=bn3_scaleFactor3)
+            # NpuWriteRTPOp("rtp05", col=tileColIndex, row=5, index=3, value=bn3_scaleFactorAdd)
 
-            # bn4
-            NpuWriteRTPOp("rtp15", col=tileColIndex+1, row=5, index=0, value=bn4_scaleFactor1)
-            NpuWriteRTPOp("rtp15", col=tileColIndex+1, row=5, index=1, value=bn4_scaleFactor2)
-            NpuWriteRTPOp("rtp15", col=tileColIndex+1, row=5, index=2, value=bn4_scaleFactor3)
-            NpuWriteRTPOp("rtp15", col=tileColIndex+1, row=5, index=3, value=bn4_scaleFactorAdd)
+            # # bn4
+            # NpuWriteRTPOp("rtp15", col=tileColIndex+1, row=5, index=0, value=bn4_scaleFactor1)
+            # NpuWriteRTPOp("rtp15", col=tileColIndex+1, row=5, index=1, value=bn4_scaleFactor2)
+            # NpuWriteRTPOp("rtp15", col=tileColIndex+1, row=5, index=2, value=bn4_scaleFactor3)
+            # NpuWriteRTPOp("rtp15", col=tileColIndex+1, row=5, index=3, value=bn4_scaleFactorAdd)
 
-            # bn5
-            NpuWriteRTPOp("rtp14", col=tileColIndex+1, row=4, index=0, value=bn5_scaleFactor1)
-            NpuWriteRTPOp("rtp14", col=tileColIndex+1, row=4, index=1, value=bn5_scaleFactor2)
-            NpuWriteRTPOp("rtp14", col=tileColIndex+1, row=4, index=2, value=bn5_scaleFactor3)
-            NpuWriteRTPOp("rtp14", col=tileColIndex+1, row=4, index=3, value=bn5_scaleFactorAdd)
+            # # bn5
+            # NpuWriteRTPOp("rtp14", col=tileColIndex+1, row=4, index=0, value=bn5_scaleFactor1)
+            # NpuWriteRTPOp("rtp14", col=tileColIndex+1, row=4, index=1, value=bn5_scaleFactor2)
+            # NpuWriteRTPOp("rtp14", col=tileColIndex+1, row=4, index=2, value=bn5_scaleFactor3)
+            # NpuWriteRTPOp("rtp14", col=tileColIndex+1, row=4, index=3, value=bn5_scaleFactorAdd)
 
-            NpuWriteRTPOp("rtp12", col=tileColIndex+1, row=2, index=0, value=bn6_scaleFactor1)
-            NpuWriteRTPOp("rtp12", col=tileColIndex+1, row=2, index=1, value=bn6_scaleFactor2)
-            NpuWriteRTPOp("rtp12", col=tileColIndex+1, row=2, index=2, value=bn6_scaleFactor3)
-            NpuWriteRTPOp("rtp12", col=tileColIndex+1, row=2, index=3, value=bn6_scaleFactorAdd)
+            # NpuWriteRTPOp("rtp12", col=tileColIndex+1, row=2, index=0, value=bn6_scaleFactor1)
+            # NpuWriteRTPOp("rtp12", col=tileColIndex+1, row=2, index=1, value=bn6_scaleFactor2)
+            # NpuWriteRTPOp("rtp12", col=tileColIndex+1, row=2, index=2, value=bn6_scaleFactor3)
+            # NpuWriteRTPOp("rtp12", col=tileColIndex+1, row=2, index=3, value=bn6_scaleFactorAdd)
 
 
-            NpuWriteRTPOp("rtp13", col=tileColIndex+1, row=3, index=0, value=bn7_scaleFactor1)
-            NpuWriteRTPOp("rtp13", col=tileColIndex+1, row=3, index=1, value=bn7_scaleFactor2)
-            NpuWriteRTPOp("rtp13", col=tileColIndex+1, row=3, index=2, value=bn7_scaleFactor3)
-            NpuWriteRTPOp("rtp13", col=tileColIndex+1, row=3, index=3, value=bn7_scaleFactorAdd)
+            # NpuWriteRTPOp("rtp13", col=tileColIndex+1, row=3, index=0, value=bn7_scaleFactor1)
+            # NpuWriteRTPOp("rtp13", col=tileColIndex+1, row=3, index=1, value=bn7_scaleFactor2)
+            # NpuWriteRTPOp("rtp13", col=tileColIndex+1, row=3, index=2, value=bn7_scaleFactor3)
+            # NpuWriteRTPOp("rtp13", col=tileColIndex+1, row=3, index=3, value=bn7_scaleFactorAdd)
 
-            NpuWriteRTPOp("rtp22", col=tileColIndex+2, row=2, index=0, value=bn8_scaleFactor1)
-            NpuWriteRTPOp("rtp22", col=tileColIndex+2, row=2, index=1, value=bn8_scaleFactor2)
-            NpuWriteRTPOp("rtp22", col=tileColIndex+2, row=2, index=2, value=bn8_scaleFactor3)
-            NpuWriteRTPOp("rtp22", col=tileColIndex+2, row=2, index=3, value=bn8_scaleFactorAdd)
+            # NpuWriteRTPOp("rtp22", col=tileColIndex+2, row=2, index=0, value=bn8_scaleFactor1)
+            # NpuWriteRTPOp("rtp22", col=tileColIndex+2, row=2, index=1, value=bn8_scaleFactor2)
+            # NpuWriteRTPOp("rtp22", col=tileColIndex+2, row=2, index=2, value=bn8_scaleFactor3)
+            # NpuWriteRTPOp("rtp22", col=tileColIndex+2, row=2, index=3, value=bn8_scaleFactorAdd)
 
-            NpuWriteRTPOp("rtp23", col=tileColIndex+2, row=3, index=0, value=bn9_scaleFactor1)
-            NpuWriteRTPOp("rtp23", col=tileColIndex+2, row=3, index=1, value=bn9_scaleFactor2)
-            NpuWriteRTPOp("rtp23", col=tileColIndex+2, row=3, index=2, value=bn9_scaleFactor3)
-            NpuWriteRTPOp("rtp23", col=tileColIndex+2, row=3, index=3, value=bn9_scaleFactorAdd)
+            # NpuWriteRTPOp("rtp23", col=tileColIndex+2, row=3, index=0, value=bn9_scaleFactor1)
+            # NpuWriteRTPOp("rtp23", col=tileColIndex+2, row=3, index=1, value=bn9_scaleFactor2)
+            # NpuWriteRTPOp("rtp23", col=tileColIndex+2, row=3, index=2, value=bn9_scaleFactor3)
+            # NpuWriteRTPOp("rtp23", col=tileColIndex+2, row=3, index=3, value=bn9_scaleFactorAdd)
             
             npu_dma_memcpy_nd(
                 metadata="act_in",

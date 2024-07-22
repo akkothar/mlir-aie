@@ -241,13 +241,16 @@ bneck_9_InW3 = bneck_9_InW2
 bneck_9_InH3 = bneck_9_InH2
 bneck_9_OutC3 = bneck_9_tensorOutC
 
-tensorOutW = bneck_1_InW3 
-tensorOutH = bneck_1_InH3
-tensorOutC = bneck_1_OutC3
+tensorOutW = bneck_2_InW3 
+tensorOutH = bneck_2_InH3
+tensorOutC = bneck_2_OutC3
 
 # tensorOutW = bneck_9_InW3 
 # tensorOutH = bneck_9_InH3
 # tensorOutC = bneck_9_OutC3
+# tensorInW = 56
+# tensorInH = 56 
+# tensorInC = 24
 
 InC_vec =  math.floor(tensorInC/vectorSize)
 OutC_vec =  math.floor(tensorOutC/vectorSize)
@@ -257,7 +260,7 @@ def main(opts):
     design = "mobilenet_bottleneck_A_chain"
     xclbin_path = opts.xclbin
     insts_path = opts.instr
-
+    ds = DataShaper()
     log_folder = "log/"
     if not os.path.exists(log_folder):
         os.makedirs(log_folder)
@@ -380,7 +383,7 @@ def main(opts):
 
             # 
             self.bn1_quant_conv1 = QuantConv2d(
-                bn0_project,
+                in_planes,
                 bn1_expand,
                 kernel_size=1,
                 bit_width=8,
@@ -443,7 +446,7 @@ def main(opts):
                 bn2_expand,
                 bn2_expand,
                 kernel_size=3,
-                stride=bn2_depthWiseChannels,
+                stride=1,
                 padding=1,
                 padding_mode="zeros",
                 bit_width=8,
@@ -855,14 +858,14 @@ def main(opts):
             out_q = self.bn1_quant_id_2(out)
 
             # # # # # # # bn2
-            # out = self.bn2_quant_conv1(out_q)
-            # out = self.bn2_quant_relu1(out)
-            # out = self.bn2_quant_conv2(out)
-            # out = self.bn2_quant_relu2(out)
-            # out = self.bn2_quant_conv3(out)
-            # out = self.bn1_quant_id_2(out)
-            # out = out+out_q
-            # out = self.bn2_add(out)
+            out = self.bn2_quant_conv1(out_q)
+            out = self.bn2_quant_relu1(out)
+            out = self.bn2_quant_conv2(out)
+            out = self.bn2_quant_relu2(out)
+            out = self.bn2_quant_conv3(out)
+            out = self.bn1_quant_id_2(out)
+            out = out+out_q
+            out = self.bn2_add(out)
 
             # # # # # # bn3
             # out = self.bn3_quant_conv1(out)
@@ -932,12 +935,13 @@ def main(opts):
             # out = self.bn8_add(out)
             # out = out+out_q
             # out = self.bn9_add(out)
-            return out_q
+            return out
 
-    quant_model = QuantBottleneckA(in_planes=tensorInC, 
-                                            bn1_expand=bneck_1_OutC1,bn1_project=bneck_1_OutC3,
-                                            bn2_expand=bneck_2_OutC1,bn2_project=bneck_2_OutC3,
-                                            bn3_expand=bneck_3_OutC1,bn3_project=bneck_3_OutC3, 
+    quant_model = QuantBottleneckA(in_planes=tensorInC,
+                                bn0_expand=bneck_0_InC2,bn0_project=bneck_0_OutC3,  
+                                bn1_expand=bneck_1_OutC1,bn1_project=bneck_1_OutC3,
+                                bn2_expand=bneck_2_OutC1,bn2_project=bneck_2_OutC3,
+                                bn3_expand=bneck_3_OutC1,bn3_project=bneck_3_OutC3, 
                                             bn4_expand=bneck_4_OutC1,bn4_project=bneck_4_OutC3, 
                                             bn5_expand=bneck_5_OutC1,bn5_project=bneck_5_OutC3, 
                                             bn6_expand=bneck_6_OutC1,bn6_project=bneck_6_OutC3,
@@ -945,29 +949,100 @@ def main(opts):
                                             bn8_expand=bneck_8_OutC1,bn8_project=bneck_8_OutC3,
                                             bn9_expand=bneck_9_OutC1,bn9_project=bneck_9_OutC3)
 
+    # class GGQuantBottleneck(nn.Module):
+    #     def __init__(self, in_planes=16, bn2_expand=16,bn2_project=16):
+    #         super(GGQuantBottleneck, self).__init__()
+    #         self.quant_id_1 = QuantIdentity(
+    #             act_quant=Int8ActPerTensorFixedPoint,
+    #             bit_width=8,
+    #             return_quant_tensor=True,
+    #         )
 
+    #         self.bn2_quant_conv1 = QuantConv2d(
+    #             in_planes,
+    #             bn2_expand,
+    #             kernel_size=1,
+    #             bit_width=8,
+    #             weight_bit_width=8,
+    #             bias=False,
+    #             weight_quant=Int8WeightPerTensorFixedPoint,
+    #             return_quant_tensor=True,
+    #         )
+    #         self.bn2_quant_conv2 = QuantConv2d(
+    #             bn2_expand,
+    #             bn2_expand,
+    #             kernel_size=3,
+    #             stride=1,
+    #             padding=1,
+    #             padding_mode="zeros",
+    #             bit_width=8,
+    #             groups=bn2_expand,
+    #             weight_bit_width=8,
+    #             bias=False,
+    #             weight_quant=Int8WeightPerTensorFixedPoint,
+    #             return_quant_tensor=True,
+    #         )
+    #         self.bn2_quant_conv3 = QuantConv2d(
+    #             bn2_expand,
+    #             bn2_project,
+    #             kernel_size=1,
+    #             bit_width=8,
+    #             weight_bit_width=8,
+    #             bias=False,
+    #             weight_quant=Int8WeightPerTensorFixedPoint,
+    #             return_quant_tensor=True,
+    #         )
+    #         self.bn2_quant_relu1 = QuantReLU(
+    #             act_quant=Uint8ActPerTensorFixedPoint,
+    #             bit_width=8,
+    #             return_quant_tensor=True,
+    #         )
+    #         self.bn2_quant_relu2 = QuantReLU(
+    #             act_quant=Uint8ActPerTensorFixedPoint,
+    #             bit_width=8,
+    #             return_quant_tensor=True,
+    #         )
+    #         self.bn2_add = QuantIdentity(
+    #             act_quant=Int8ActPerTensorFixedPoint,
+    #             bit_width=8,
+    #             return_quant_tensor=True,
+    #         )
+
+    #     def forward(self, x):
+    #         out_q = self.quant_id_1(x)
+    #         out = self.bn2_quant_conv1(out_q)
+    #         out = self.bn2_quant_relu1(out)
+    #         out = self.bn2_quant_conv2(out)
+    #         out = self.bn2_quant_relu2(out)
+    #         out = self.bn2_quant_conv3(out)
+    #         out = self.quant_id_1(out)
+    #         out = out+out_q
+    #         out = self.bn2_add(out)
+    #         return out
+    
     from utils import ExpandChannels
     from brevitas_examples.imagenet_classification.ptq.ptq_common import calibrate
     import torchvision
     import torch.utils.data as data_utils
     from torchvision import transforms
-    # Define the image preprocessing pipeline
+    # # Define the image preprocessing pipeline
     transform = transforms.Compose([
         transforms.Resize(128),
-        transforms.CenterCrop(112),
+        transforms.CenterCrop(tensorInW),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ExpandChannels(target_channels=16)  # Expand to 80 channels
     ])
-    data_dir = "data"
+
+    # data_dir = "data"
     
-    # test_dataset = torchvision.datasets.ImageNet(
-    #     root=data_dir, train=False, transform=transform, download=True)
+    # # test_dataset = torchvision.datasets.ImageNet(
+    # #     root=data_dir, train=False, transform=transform, download=True)
     
-    # # Create a subset and DataLoader for the single image
-    # indices = torch.arange(32)
-    # val_sub = data_utils.Subset(test_dataset, indices)
-    # calib_loader = torch.utils.data.DataLoader(dataset=val_sub, batch_size=32, shuffle=False)
+    # # # Create a subset and DataLoader for the single image
+    # # indices = torch.arange(32)
+    # # val_sub = data_utils.Subset(test_dataset, indices)
+    # # calib_loader = torch.utils.data.DataLoader(dataset=val_sub, batch_size=32, shuffle=False)
     
     src_data="/group/xrlabs2/imagenet/calibration"
     datset=torchvision.datasets.ImageFolder(
@@ -976,16 +1051,42 @@ def main(opts):
     indices = torch.arange(4)
     val_sub = data_utils.Subset(datset, indices)
     calib_loader = torch.utils.data.DataLoader(dataset=val_sub, batch_size=32, shuffle=False)
+    # quant_bottleneck_model = GGQuantBottleneck(in_planes=bneck_2_InC1, bn2_expand=bneck_2_OutC1,bn2_project=bneck_2_OutC3)
+
     calibrate(calib_loader, quant_model)
+    # calibrate(calib_loader, quant_bottleneck_model)
+    # # calibrate([(torch.rand(1, 16, 56, 56), 1) for _ in range(5)], quant_model)
 
-    # calibrate([(torch.rand(1, 16, 56, 56), 1) for _ in range(5)], quant_model)
-
-    # from brevitas.fx import brevitas_symbolic_trace
-    # model = brevitas_symbolic_trace(quant_model)
-    # print(model.graph)
-    # print(model)
+    # # from brevitas.fx import brevitas_symbolic_trace
+    # # model = brevitas_symbolic_trace(quant_model)
+    # # print(model.graph)
+    # # print(model)
     quant_model.eval()
    
+    # gg_block_2_int_weight_1 = quant_bottleneck_model.bn2_quant_conv1.quant_weight().int(
+    #     float_datatype=True
+    # )
+    # gg_block_2_int_weight_2 = quant_bottleneck_model.bn2_quant_conv2.quant_weight().int(
+    #     float_datatype=True
+    # )
+    # gg_block_2_int_weight_3 = quant_bottleneck_model.bn2_quant_conv3.quant_weight().int(
+    #     float_datatype=True
+    # )
+   # **************************** bn2 ****************************
+    # gg_bn2_wts1 = ds.reorder_mat(
+    #     gg_block_2_int_weight_1.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
+    # )
+    # gg_bn2_wts2 = ds.reorder_mat(
+    #     gg_block_2_int_weight_2.data.numpy().astype(dtype_wts), "OIYXI1O8", "OIYX"
+    # )
+    # gg_bn2_wts3 = ds.reorder_mat(
+    #     gg_block_2_int_weight_3.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX"
+    # )
+    # gg_total_wts = np.concatenate((gg_bn2_wts1, gg_bn2_wts2, gg_bn2_wts3), axis=None)
+    # gg_q_bottleneck_out = quant_bottleneck_model(input)
+    # gg_golden_output = gg_q_bottleneck_out.int(float_datatype=True).data.numpy().astype(dtype_out)
+    # q_inp = quant_bottleneck_model.quant_id_1(input)
+    # int_inp = q_inp.int(float_datatype=True)
 
     q_bottleneck_out = quant_model(input)
     golden_output = q_bottleneck_out.int(float_datatype=True).data.numpy().astype(dtype_out)
@@ -1422,7 +1523,7 @@ def main(opts):
     golden_output.tofile(
         log_folder + "/golden_output.txt", sep=",", format="%d"
     )
-    ds = DataShaper()
+   
     before_input = int_inp.squeeze().data.numpy().astype(dtype_in)
     before_input.tofile(
         log_folder + "/before_ifm_mem_fmt_1x1.txt", sep=",", format="%d"
@@ -1595,7 +1696,36 @@ def main(opts):
 
     tolerance = 6
     different_indices = np.argwhere(np.abs(golden - ofm_mem_fmt_out) > tolerance)
+    # block_2_inp_scale1= quant_bottleneck_model.quant_id_1.quant_act_scale()
 
+    # block_2_relu_1 = quant_bottleneck_model.bn2_quant_relu1.quant_act_scale()
+    # block_2_relu_2 = quant_bottleneck_model.bn2_quant_relu2.quant_act_scale()
+    # block_2_skip_add = quant_bottleneck_model.bn2_add.quant_act_scale()
+
+    # block_2_weight_scale1 = quant_bottleneck_model.bn2_quant_conv1.quant_weight_scale()
+    # block_2_weight_scale2 = quant_bottleneck_model.bn2_quant_conv2.quant_weight_scale()
+    # block_2_weight_scale3 = quant_bottleneck_model.bn2_quant_conv3.quant_weight_scale()
+    # block_2_combined_scale1 = -torch.log2(
+    #     block_2_inp_scale1 * block_2_weight_scale1 / block_2_relu_1
+    # )
+    # block_2_combined_scale2 = -torch.log2(
+    #     block_2_relu_1 * block_2_weight_scale2 / block_2_relu_2
+    # )  
+    # block_2_combined_scale3 = -torch.log2(
+    #     block_2_relu_2 * block_2_weight_scale3/block_2_inp_scale1
+    # )   
+    # block_2_combined_scale_skip = -torch.log2(
+    #     block_2_inp_scale1 / block_2_skip_add
+    # )  # After addition | clip -128-->127
+
+
+
+    # print("********************BN2*******************************")
+    # print("combined_scale after conv1x1:", block_2_combined_scale1.item())
+    # print("combined_scale after conv3x3:", block_2_combined_scale2.item())
+    # print("combined_scale after conv1x1:", block_2_combined_scale3.item())
+    # print("combined_scale after skip add:", block_2_combined_scale_skip.item())
+    # print("********************BN2*******************************")
     if np.allclose(
         ofm_mem_fmt_out,
         golden_output,
