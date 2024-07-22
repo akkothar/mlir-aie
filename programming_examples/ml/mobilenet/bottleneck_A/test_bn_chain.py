@@ -241,9 +241,9 @@ bneck_9_InW3 = bneck_9_InW2
 bneck_9_InH3 = bneck_9_InH2
 bneck_9_OutC3 = bneck_9_tensorOutC
 
-tensorOutW = bneck_2_InW3 
-tensorOutH = bneck_2_InH3
-tensorOutC = bneck_2_OutC3
+tensorOutW = bneck_3_InW3 
+tensorOutH = bneck_3_InH3
+tensorOutC = bneck_3_OutC3
 
 # tensorOutW = bneck_9_InW3 
 # tensorOutH = bneck_9_InH3
@@ -868,12 +868,12 @@ def main(opts):
             out = self.bn2_add(out)
 
             # # # # # # bn3
-            # out = self.bn3_quant_conv1(out)
-            # out = self.bn3_quant_relu1(out)
-            # out = self.bn3_quant_conv2(out)
-            # out = self.bn3_quant_relu2(out)
-            # out = self.bn3_quant_conv3(out)
-            # out_q = self.bn3_quant_id_2(out)
+            out = self.bn3_quant_conv1(out)
+            out = self.bn3_quant_relu1(out)
+            out = self.bn3_quant_conv2(out)
+            out = self.bn3_quant_relu2(out)
+            out = self.bn3_quant_conv3(out)
+            out_q = self.bn3_quant_id_2(out)
 
             # # # # # # bn4
             # out = self.bn4_quant_conv1(out_q)
@@ -935,7 +935,7 @@ def main(opts):
             # out = self.bn8_add(out)
             # out = out+out_q
             # out = self.bn9_add(out)
-            return out
+            return out_q
 
     quant_model = QuantBottleneckA(in_planes=tensorInC,
                                 bn0_expand=bneck_0_InC2,bn0_project=bneck_0_OutC3,  
