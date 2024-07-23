@@ -11,9 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 // #define __AIENGINE__ 1
-#define __AIENGINE__ 2
+// #define __AIENGINE__ 2
 #define NOCPP
-#define __AIEARCH__ 20
+// #define __AIEARCH__ 20
 
 #include <stdint.h>
 #include <stdio.h>

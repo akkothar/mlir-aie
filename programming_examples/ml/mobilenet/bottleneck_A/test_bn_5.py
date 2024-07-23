@@ -170,6 +170,37 @@ def main(opts):
             return out
 
     quant_bottleneck_model = QuantBottleneckA(in_planes=bneck_5_InC1, bn5_expand=bneck_5_OutC1,bn5_project=bneck_5_OutC3)
+    from utils import ExpandChannels
+    from brevitas_examples.imagenet_classification.ptq.ptq_common import calibrate
+    import torchvision
+    import torch.utils.data as data_utils
+    from torchvision import transforms
+    # Define the image preprocessing pipeline
+    transform = transforms.Compose([
+        transforms.Resize(64),
+        transforms.CenterCrop(bneck_5_InW1),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ExpandChannels(target_channels=bneck_5_InC1)  # Expand to 80 channels
+    ])
+    data_dir = "data"
+    
+    # test_dataset = torchvision.datasets.ImageNet(
+    #     root=data_dir, train=False, transform=transform, download=True)
+    
+    # # Create a subset and DataLoader for the single image
+    # indices = torch.arange(32)
+    # val_sub = data_utils.Subset(test_dataset, indices)
+    # calib_loader = torch.utils.data.DataLoader(dataset=val_sub, batch_size=32, shuffle=False)
+    
+    src_data="/group/xrlabs2/imagenet/calibration"
+    datset=torchvision.datasets.ImageFolder(
+        src_data,
+        transform)
+    indices = torch.arange(4)
+    val_sub = data_utils.Subset(datset, indices)
+    calib_loader = torch.utils.data.DataLoader(dataset=val_sub, batch_size=32, shuffle=False)
+    calibrate(calib_loader, quant_bottleneck_model)
     quant_bottleneck_model.eval()
     
     q_bottleneck_out = quant_bottleneck_model(input)
@@ -280,6 +311,11 @@ def main(opts):
     # Compare the AIE output and the golden reference
     # ------------------------------------------------------
     print("\nAvg NPU time: {}us.".format(int((npu_time_total / num_iter) / 1000)))
+    from utils import convert_to_numpy
+    golden=convert_to_numpy(golden_output)
+    ofm_mem_fmt_out=convert_to_numpy(ofm_mem_fmt_out)
+    max_diff_int = np.max((golden)-(ofm_mem_fmt_out))
+    print("max difference (int): {}".format(max_diff_int))
 
     if np.allclose(
         ofm_mem_fmt_out,

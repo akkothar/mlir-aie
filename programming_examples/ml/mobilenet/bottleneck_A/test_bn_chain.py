@@ -1623,49 +1623,19 @@ def main(opts):
     golden=convert_to_numpy(golden_output)
     ofm_mem_fmt_out=convert_to_numpy(ofm_mem_fmt_out)
     max_difference = np.max((golden)-(ofm_mem_fmt_out))
-    print("Max:",max_difference)
+    print("Error between AIE and Golden Brevitas:",max_difference)
             # Find indices where the arrays differ
-    print(golden.shape)
+
     if golden.shape != ofm_mem_fmt_out.shape:
         raise ValueError("The input arrays must have the same shape")
 
-    tolerance = 6
+    tolerance = 1
     different_indices = np.argwhere(np.abs(golden - ofm_mem_fmt_out) > tolerance)
-    # block_2_inp_scale1= quant_bottleneck_model.quant_id_1.quant_act_scale()
-
-    # block_2_relu_1 = quant_bottleneck_model.bn2_quant_relu1.quant_act_scale()
-    # block_2_relu_2 = quant_bottleneck_model.bn2_quant_relu2.quant_act_scale()
-    # block_2_skip_add = quant_bottleneck_model.bn2_add.quant_act_scale()
-
-    # block_2_weight_scale1 = quant_bottleneck_model.bn2_quant_conv1.quant_weight_scale()
-    # block_2_weight_scale2 = quant_bottleneck_model.bn2_quant_conv2.quant_weight_scale()
-    # block_2_weight_scale3 = quant_bottleneck_model.bn2_quant_conv3.quant_weight_scale()
-    # block_2_combined_scale1 = -torch.log2(
-    #     block_2_inp_scale1 * block_2_weight_scale1 / block_2_relu_1
-    # )
-    # block_2_combined_scale2 = -torch.log2(
-    #     block_2_relu_1 * block_2_weight_scale2 / block_2_relu_2
-    # )  
-    # block_2_combined_scale3 = -torch.log2(
-    #     block_2_relu_2 * block_2_weight_scale3/block_2_inp_scale1
-    # )   
-    # block_2_combined_scale_skip = -torch.log2(
-    #     block_2_inp_scale1 / block_2_skip_add
-    # )  # After addition | clip -128-->127
-
-
-
-    # print("********************BN2*******************************")
-    # print("combined_scale after conv1x1:", block_2_combined_scale1.item())
-    # print("combined_scale after conv3x3:", block_2_combined_scale2.item())
-    # print("combined_scale after conv1x1:", block_2_combined_scale3.item())
-    # print("combined_scale after skip add:", block_2_combined_scale_skip.item())
-    # print("********************BN2*******************************")
     if np.allclose(
         ofm_mem_fmt_out,
         golden_output,
         rtol=0,
-        atol=9,
+        atol=1,
     ):
         print("\nPASS!\n")
         print_three_dolphins()
@@ -1674,7 +1644,6 @@ def main(opts):
         print("\nFailed.\n")
         for index in different_indices:
             idx_tuple = tuple(index)
-            # print(f"Index {idx_tuple}: GOLDEN has {golden_output[idx_tuple]}, AIE has {ofm_mem_fmt_out[idx_tuple]}, diff {np.abs(golden[idx_tuple] - ofm_mem_fmt_out[idx_tuple])}")
         exit(-1)
 
 

@@ -105,7 +105,7 @@ def main(opts):
     if not os.path.exists(log_folder):
         os.makedirs(log_folder)
 
-    num_iter = 100
+    num_iter = 1
     npu_time_total = 0
     npu_time_min = 9999999
     npu_time_max = 0
@@ -255,6 +255,12 @@ def main(opts):
                 bit_width=8,
                 return_quant_tensor=True,
             )
+
+            self.bn11_quant_id_2 = QuantIdentity(
+                act_quant=Int8ActPerTensorFixedPoint,
+                bit_width=8,
+                return_quant_tensor=True,
+            )
 # bn12
 # # force alignment between scales going into add
 #             self.bn10_quant_id_2.act_quant.fused_activation_quant_proxy.tensor_quant.scaling_impl = self.bn11_quant_id_2.act_quant.fused_activation_quant_proxy.tensor_quant.scaling_impl
@@ -325,7 +331,7 @@ def main(opts):
             out = self.bn11_quant_relu2(out)
             out = self.bn11_quant_conv3(out)
             out = self.bn10_quant_id_2(out)
-            out=out+out_lhs
+            out = out+out_lhs
             out = self.bn11_add(out)
             # bn12
             out = self.bn12_quant_conv1(out)
@@ -334,13 +340,44 @@ def main(opts):
             out = self.bn12_quant_relu2(out)
             out = self.bn12_quant_conv3(out)
             out = self.bn12_quant_id_2(out)
+          
             return out
 
     quant_bottleneck_model = QuantBottleneck(in_planes=bneck_10_InC1, bn10_expand=bneck_10_OutC2,bn10_project=bneck_10_OutC3, 
                                              bn11_expand=bneck_11_OutC2,bn11_project=bneck_11_OutC3, bn12_expand=bneck_12_OutC2,bn12_project=bneck_12_OutC3)
     quant_bottleneck_model.eval()
     
-    calibrate([(torch.rand(1, bneck_10_InC1, bneck_10_InH1, bneck_10_InW1), 1) for _ in range(5)], quant_bottleneck_model)
+    from utils import ExpandChannels
+    from brevitas_examples.imagenet_classification.ptq.ptq_common import calibrate
+    import torchvision
+    import torch.utils.data as data_utils
+    from torchvision import transforms
+    # Define the image preprocessing pipeline
+    transform = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ExpandChannels(target_channels=bneck_10_InC1)  # Expand to 80 channels
+    ])
+    data_dir = "data"
+    
+    # test_dataset = torchvision.datasets.ImageNet(
+    #     root=data_dir, train=False, transform=transform, download=True)
+    
+    # # Create a subset and DataLoader for the single image
+    # indices = torch.arange(32)
+    # val_sub = data_utils.Subset(test_dataset, indices)
+    # calib_loader = torch.utils.data.DataLoader(dataset=val_sub, batch_size=32, shuffle=False)
+    
+    src_data="/group/xrlabs2/imagenet/calibration"
+    datset=torchvision.datasets.ImageFolder(
+        src_data,
+        transform)
+    indices = torch.arange(4)
+    val_sub = data_utils.Subset(datset, indices)
+    calib_loader = torch.utils.data.DataLoader(dataset=val_sub, batch_size=32, shuffle=False)
+    calibrate(calib_loader, quant_bottleneck_model)
     quant_bottleneck_model.eval()
     for name, param in quant_bottleneck_model.named_parameters():
         if name.endswith(".bias"):
@@ -381,10 +418,12 @@ def main(opts):
     block_11_relu_1 =       quant_bottleneck_model.bn11_quant_relu1.quant_act_scale()
     block_11_relu_2 =       quant_bottleneck_model.bn11_quant_relu2.quant_act_scale()
     block_11_skip_add =     quant_bottleneck_model.bn11_add.quant_act_scale()
+    block_11_final_scale =  quant_bottleneck_model.bn11_quant_id_2.quant_act_scale()
 
     block_11_weight_scale1 = quant_bottleneck_model.bn11_quant_conv1.quant_weight_scale()
     block_11_weight_scale2 = quant_bottleneck_model.bn11_quant_conv2.quant_weight_scale()
     block_11_weight_scale3 = quant_bottleneck_model.bn11_quant_conv3.quant_weight_scale()
+    
     block_11_combined_scale1 = -torch.log2(
         block_10_final_scale * block_11_weight_scale1 / block_11_relu_1
     )
@@ -418,7 +457,8 @@ def main(opts):
     
     atol=block_12_final_scale.item()
 
-    print("********************BN11*******************************")
+
+    print("********************BN10*******************************")
     print("combined_scale after conv1x1:", block_10_combined_scale1.item())
     print("combined_scale after conv3x3:", block_10_combined_scale2.item())
     print("combined_scale after conv1x1:", block_10_combined_scale3.item())
@@ -427,7 +467,7 @@ def main(opts):
     scale_factors["BN10"]["conv3x3"] = int(block_10_combined_scale2.item() )
     scale_factors["BN10"]["conv1x1_2"] = int(block_10_combined_scale3.item())
     
-    print("********************BN12*******************************")
+    print("********************BN11*******************************")
     print("combined_scale after conv1x1:", block_11_combined_scale1.item())
     print("combined_scale after conv3x3:", block_11_combined_scale2.item())
     print("combined_scale after conv1x1:", block_11_combined_scale3.item())
@@ -445,6 +485,7 @@ def main(opts):
     scale_factors["BN12"]["conv1x1_1"] = int(block_12_combined_scale1.item())
     scale_factors["BN12"]["conv3x3"] = int(block_12_combined_scale2.item() )
     scale_factors["BN12"]["conv1x1_2"] = int(block_12_combined_scale3.item())
+
 
     write_scale_factors(file_path, scale_factors)
     # ------------------------------------------------------
@@ -553,8 +594,8 @@ def main(opts):
         ofm_mem_fmt_out = torch.from_numpy(ofm_mem_fmt).unsqueeze(0)
         # print("\nIter:{}, NPU time: {}us.".format(i,int((npu_time) / 1000)))
         # 
-        # print("AIE:",ofm_mem_fmt_out)
-        # print("Golden (int):",golden_output)
+        print("AIE:",ofm_mem_fmt_out)
+        print("Golden (int):",golden_output)
 
         # ------------------------------------------------------
         # Compare the AIE output and the golden reference
@@ -562,28 +603,28 @@ def main(opts):
     
 
         # print("Golden  (float): ",q_bottleneck_out.value.detach())
-        max_diff=np.max(np.abs(ofm_mem_fmt* atol - convert_to_numpy(q_bottleneck_out.value.detach().numpy())))
         
         golden=convert_to_numpy(golden_output)
         ofm_mem_fmt_out=convert_to_numpy(ofm_mem_fmt_out)
         max_diff_int = np.max((golden)-(ofm_mem_fmt_out))
         # print("atol: {} max difference (float/int): {} / {}".format(atol,max_diff,max_diff_int))
+        print("max difference (int): {}".format(max_diff_int))
     average_time = sum(times) / num_iter
     best_time = min(times)
     print("\nNPU time= Avg: {}us, Best: {}us.".format(int((average_time) / 1000),int((best_time) / 1000)))
 
-    # if np.allclose(
-    #     golden,
-    #     ofm_mem_fmt_out,
-    #     rtol=0,
-    #     atol=5,
-    # ):
-    #     print("\nPASS!\n")
-    #     print_dolphin()
-    #     exit(0)
-    # else:
-    #     print("\nFailed.\n")
-    #     exit(-1)
+    if np.allclose(
+        golden,
+        ofm_mem_fmt_out,
+        rtol=0,
+        atol=5,
+    ):
+        print("\nPASS!\n")
+        print_dolphin()
+        exit(0)
+    else:
+        print("\nFailed.\n")
+        exit(-1)
 
 
 if __name__ == "__main__":

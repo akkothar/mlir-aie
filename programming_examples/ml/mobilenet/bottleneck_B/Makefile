@@ -34,9 +34,14 @@ testFileName=test_wts_L2
 mlirFileName=aie2_bn10_bn11
 testFileName=test_bn10_bn11
 
+
 mlirFileName=aie2_bn10_bn11_bn12
 testFileName=test_bn10_bn11_bn12
+
+testFileName=test
 mlirFileName = aie2_bottleneckB
+
+
 
 
 VPATH := ${srcdir}/../../../../aie_kernels/aie2
