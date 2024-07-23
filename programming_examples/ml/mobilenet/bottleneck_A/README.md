@@ -9,6 +9,18 @@ This project implements a bottleneck block for a neural network on a single AI E
 - `README.md`: This file, providing an overview and setup instructions.
 - `Makefile`: Makefile for building the project.
 
+
+
+The below figures shows our implementation of the bottleneck A mapping using one AIE core.
+<p align="center">
+ <picture>
+ <source media="(prefers-color-scheme: light)" srcset="./bottleneck_a.png">
+ <img alt="block" src="./bottleneck_a.png">
+</picture>
+ <h3 align="center">Bottleneck A depth-first mapping on a single AIE core to avoid unnecessary off-chip data movement.
+ </h3>
+</p>
+
 ## Setup
 
 ### Building the Project

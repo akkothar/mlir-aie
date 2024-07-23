@@ -17,7 +17,19 @@ This project implements MobileNet V3 on AI Engine with three different mappings 
 - `bottlenec_B/`: Implementation of Bottleneck B.
 - `bottlenec_C/`: Implementation of Bottleneck C.
 
-## Bottleneck Mappings
+
+## Dataflow Mapping
+
+
+The below figures shows our dataflow mapping of MobileNetV3 on 4x8 AI Engine array.
+<p align="center">
+ <picture>
+ <source media="(prefers-color-scheme: light)" srcset="./mobilenet_dataflow.png">
+ <img alt="block" src="./mobilenet_dataflow.png">
+</picture>
+ <h3 align="center">Our depth-first mapping avoid unnecessary off-chip data movement.
+ </h3>
+</p>
 
 ### Bottleneck A
 
