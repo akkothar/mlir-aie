@@ -12,7 +12,7 @@ VPATH := ${srcdir}/../../../../aie_kernels/aie2
 
 MLIR_FILE=aie2_bn_chain
 
-OBJ = build/fused_bn0_bn1.a build/bn2_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a build/bn3_combined_con2dk1fusedrelu_conv2dk3dwstride2_conv2dk1.a build/bn4_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a build/bn5_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a build/bn6_combined_con2dk1fusedrelu_conv2dk3dwstride2_conv2dk1.a build/bn7_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a build/bn8_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a build/bn9_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a 
+OBJ = build/fused_bn0_bn1.a build/bn2_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a build/bn3_combined_con2dk1fusedrelu_conv2dk3dwstride2_conv2dk1.a build/bn4_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a build/bn5_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1.a build/bn6_combined_con2dk1fusedrelu_conv2dk3dwstride2_conv2dk1.a build/bn7_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a build/bn8_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1.a build/bn9_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a 
 # OBJ = build/fused_bn0_bn1.a 
 
 all: build/final_bn_chain.xclbin run_py_bn_chain
@@ -152,11 +152,16 @@ build/bn5_conv2dk1_fused_relu.o: bn_conv2dk1_relu.cc
 build/bn5_conv2dk3_dw_stride1.o: bn_conv2dk3_dw.cc
 	mkdir -p ${@D}
 	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DBN5  -DSCALAR  -DSTRIDE1 -c $< -o ${@F}
-build/bn5_conv2dk1_skip.o: bn_conv2dk1_skip.cc
-	mkdir -p ${@D}
-	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DBN5 -DSCALAR -c $< -o ${@F}
+# build/bn5_conv2dk1_skip.o: bn_conv2dk1_skip.cc
+# 	mkdir -p ${@D}
+# 	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DBN5 -DSCALAR -c $< -o ${@F}
 
-build/bn5_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a: build/bn5_conv2dk1_fused_relu.o build/bn5_conv2dk3_dw_stride1.o build/bn5_conv2dk1_skip.o  
+build/bn5_conv2dk1_i8.o: bn_conv2dk1_i8.cc
+	mkdir -p ${@D}
+	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS}  -DSCALAR -DBN5 -c $< -o ${@F}
+
+
+build/bn5_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1.a: build/bn5_conv2dk1_fused_relu.o build/bn5_conv2dk3_dw_stride1.o build/bn5_conv2dk1_i8.o  
 	mkdir -p ${@D}
 	ar rvs $@ $< $(word 2,$^) $(word 3,$^)
 
@@ -199,11 +204,15 @@ build/bn8_conv2dk1_fused_relu.o: bn_conv2dk1_relu.cc
 build/bn8_conv2dk3_dw_stride1.o: bn_conv2dk3_dw.cc
 	mkdir -p ${@D}
 	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DBN8  -DSCALAR  -DSTRIDE1 -c $< -o ${@F}
-build/bn8_conv2dk1_skip.o: bn_conv2dk1_skip.cc
-	mkdir -p ${@D}
-	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DBN8 -DSCALAR -c $< -o ${@F}
+# build/bn8_conv2dk1_skip.o: bn_conv2dk1_skip.cc
+# 	mkdir -p ${@D}
+# 	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS} -DBN8 -DSCALAR -c $< -o ${@F}
 
-build/bn8_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1skip.a: build/bn8_conv2dk1_fused_relu.o build/bn8_conv2dk3_dw_stride1.o build/bn8_conv2dk1_skip.o  
+build/bn8_conv2dk1_i8.o: bn_conv2dk1_i8.cc
+	mkdir -p ${@D}
+	cd ${@D} && xchesscc_wrapper ${CHESSCCWRAP2_FLAGS}  -DSCALAR -DBN8 -c $< -o ${@F}
+
+build/bn8_combined_con2dk1fusedrelu_conv2dk3dwstride1_conv2dk1.a: build/bn8_conv2dk1_fused_relu.o build/bn8_conv2dk3_dw_stride1.o build/bn8_conv2dk1_i8.o  
 	mkdir -p ${@D}
 	ar rvs $@ $< $(word 2,$^) $(word 3,$^)
 

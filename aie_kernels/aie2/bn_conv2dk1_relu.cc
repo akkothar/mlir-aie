@@ -769,7 +769,6 @@ void conv2dk1_i8_scalar(int8_t *input, int8_t *kernels, uint8_t *output,
   int x, ic, oc, ic8, oc8;
   // scale=-17;
   // int applied_scale=scale;
-  int remain ;
   for (oc = 0; oc < output_channels / 8; oc++) {
     for (x = 0; x < input_width; x++) { // col of output image
       for (oc8 = 0; oc8 < 8; oc8++) {
@@ -784,15 +783,6 @@ void conv2dk1_i8_scalar(int8_t *input, int8_t *kernels, uint8_t *output,
             sum += val * k;
           }
         }
-
-        // sum_srs=sum>>scale;
-        /* sum is the mantissa */
-        // remain = sum & ((1<<(scale-1))-1); // is there any bit set after half? is it a tie
-        // if (remain > 0){ sum += 1<<(scale-1); } // not a tie case
-        // else { // tie case
-        //   if (sum & (1<<scale)) {sum += 1<<(scale-1);} // odd, round up
-        //   else {} // even, round down
-        // }
         // sum_srs = (sum >> scale) << scale; // clip
         sum_srs = ((sum + (1 << (scale - 1)) - 1 + ((sum >> scale) & 1)) >> scale);
         
@@ -809,50 +799,50 @@ void conv2dk1_i8_scalar(int8_t *input, int8_t *kernels, uint8_t *output,
 #endif
 #endif
 
-#if defined (BN1) ||(BN2) ||(BN3) ||(BN4) || (BN5) || (BN6) || (BN7) || (BN8) || (BN9) || (BN10) || (BN11) || (BN12) || (BN13) || (BN14) ||  (REGULAR)
-#ifdef UINT8_ACT
-//*****************************************************************************
-// conv2d 1x1 - scalar
-// act: uint8, wts: int8, out: uint8
-//*****************************************************************************
-void conv2dk1_ui8_scalar(uint8_t *input, int8_t *kernels, uint8_t *output,
-                         const int32_t input_width,
-                         const int32_t input_channels,
-                         const int32_t output_channels, const int scale) {
-  event0();
+// #if defined (BN1) ||(BN2) ||(BN3) ||(BN4) || (BN5) || (BN6) || (BN7) || (BN8) || (BN9) || (BN10) || (BN11) || (BN12) || (BN13) || (BN14) ||  (REGULAR)
+// #ifdef UINT8_ACT
+// //*****************************************************************************
+// // conv2d 1x1 - scalar
+// // act: uint8, wts: int8, out: uint8
+// //*****************************************************************************
+// void conv2dk1_ui8_scalar(uint8_t *input, int8_t *kernels, uint8_t *output,
+//                          const int32_t input_width,
+//                          const int32_t input_channels,
+//                          const int32_t output_channels, const int scale) {
+//   event0();
 
-  int x, ic, oc, ic8, oc8;
-  // scale=-17;
-  for (oc = 0; oc < output_channels / 8; oc++) {
-    for (x = 0; x < input_width; x++) { // col of output image
-      for (oc8 = 0; oc8 < 8; oc8++) {
-        int sum = 0;
-        int sum_srs = 0;
+//   int x, ic, oc, ic8, oc8;
+//   // scale=-17;
+//   for (oc = 0; oc < output_channels / 8; oc++) {
+//     for (x = 0; x < input_width; x++) { // col of output image
+//       for (oc8 = 0; oc8 < 8; oc8++) {
+//         int sum = 0;
+//         int sum_srs = 0;
 
-        for (ic = 0; ic < input_channels / 8; ic++) {
-          for (ic8 = 0; ic8 < 8; ic8++) {
-            uint8_t val = input[(ic * input_width * 8) + (x * 8) + ic8];
-            int8_t k = kernels[(oc * (input_channels / 8) * 64) + (ic * 64) +
-                               (ic8 * 8) + oc8];
-            sum += val * k;
-          }
-        }
+//         for (ic = 0; ic < input_channels / 8; ic++) {
+//           for (ic8 = 0; ic8 < 8; ic8++) {
+//             uint8_t val = input[(ic * input_width * 8) + (x * 8) + ic8];
+//             int8_t k = kernels[(oc * (input_channels / 8) * 64) + (ic * 64) +
+//                                (ic8 * 8) + oc8];
+//             sum += val * k;
+//           }
+//         }
 
-        // sum_srs=sum>>scale;
-        // sum_srs = (sum + (1 << (scale - 1))) >> scale;
-        sum_srs = ((sum + (1 << (scale - 1)) - 1 + ((sum >> scale) & 1)) >> scale);
-        sum_srs = (sum_srs > UMAX) ? UMAX : (sum_srs < 0) ? 0 : sum_srs;
-        // sum_srs = input[(oc*input_width*8) + (x*8) + oc8];
-        output[(oc * input_width * 8) + (x * 8) + oc8] = sum_srs;
-      }
-    }
-  }
+//         // sum_srs=sum>>scale;
+//         // sum_srs = (sum + (1 << (scale - 1))) >> scale;
+//         sum_srs = ((sum + (1 << (scale - 1)) - 1 + ((sum >> scale) & 1)) >> scale);
+//         sum_srs = (sum_srs > UMAX) ? UMAX : (sum_srs < 0) ? 0 : sum_srs;
+//         // sum_srs = input[(oc*input_width*8) + (x*8) + oc8];
+//         output[(oc * input_width * 8) + (x * 8) + oc8] = sum_srs;
+//       }
+//     }
+//   }
 
-  event1();
-}
+//   event1();
+// }
 
-#endif // UINT8_ACT
-#endif
+// #endif // UINT8_ACT
+// #endif
 
 
 //*****************************************************************************
