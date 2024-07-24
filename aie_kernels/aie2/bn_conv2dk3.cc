@@ -75,7 +75,8 @@ const int32_t MAX = 255;
           }
         }
       }
-      sum_srs = (sum + (1 << (scale - 1))) >> scale;
+      // sum_srs = (sum + (1 << (scale - 1))) >> scale;
+      sum_srs = (((sum) + (1 << (scale - 1)) - 1 + (((sum) >> scale) & 1)) >> scale);
       sum_srs = (sum_srs > MAX) ? MAX : (sum_srs < 0) ? 0 : sum_srs;
       output[(oc * output_width * 8) + oc8] = sum_srs;
 
@@ -102,7 +103,8 @@ const int32_t MAX = 255;
             }
           }
         }
-        sum_srs = (sum + (1 << (scale - 1))) >> scale;
+        // sum_srs = (sum + (1 << (scale - 1))) >> scale;
+        sum_srs = (((sum) + (1 << (scale - 1)) - 1 + (((sum) >> scale) & 1)) >> scale);
         sum_srs = (sum_srs > MAX) ? MAX : (sum_srs < 0) ? 0 : sum_srs;
         output[(oc * output_width * 8) + x * 8 + oc8] = sum_srs;
       }

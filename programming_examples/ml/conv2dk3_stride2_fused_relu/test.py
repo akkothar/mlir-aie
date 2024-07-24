@@ -128,7 +128,7 @@ def main(opts):
     int_weight = quant_bottleneck_model.conv1.quant_weight().int(float_datatype=True)
     q_bottleneck_out = quant_bottleneck_model(input)
     golden_output = q_bottleneck_out.int(float_datatype=True).data.numpy().astype(dtype_out)
-    print("Golden::Brevitas::", golden_output)
+    # print("Golden::Brevitas::", golden_output)
     q_inp = quant_bottleneck_model.quant_id_1(input)
     int_inp = q_inp.int(float_datatype=True)
     # print(input.shape)
@@ -153,11 +153,11 @@ def main(opts):
     )
     ifm_mem_fmt = ds.reorder_mat(before_input, "YCXC8", "CYX")
     ifm_mem_fmt.tofile(log_folder + "/after_ifm_mem_fmt.txt", sep=",", format="%d")
-    print(int_weight.shape)
+    # print(int_weight.shape)
     int_weight.data.numpy().astype(dtype_wts).tofile(log_folder + "/before_weights_mem_fmt_final.txt", sep=",", format="%d")
     wts1 = ds.reorder_mat(int_weight.data.numpy().astype(dtype_wts), "OIYXI8O8", "OIYX")
     total_wts = np.concatenate((wts1), axis=None)
-    print(total_wts.shape)
+    # print(total_wts.shape)
   
     total_wts.tofile(log_folder + "/after_weights_mem_fmt_final.txt", sep=",", format="%d")
 
@@ -181,7 +181,7 @@ def main(opts):
         log_folder + "/after_ofm_mem_fmt_final.txt", sep=",", format="%d"
     )
     ofm_mem_fmt_out = torch.from_numpy(ofm_mem_fmt).unsqueeze(0)
-    print(ofm_mem_fmt_out)
+    # print(ofm_mem_fmt_out)
     # ------------------------------------------------------
     # Compare the AIE output and the golden reference
     # ------------------------------------------------------
