@@ -18,8 +18,6 @@ include ${srcdir}/../../../makefile-common
 # mlirFileName = aie2_bottleneckB
 # testFileName=test
 
-mlirFileName = aie2_bottleneckB_wts_L2
-testFileName=test_wts_L2
 
 # mlirFileName=aie2_bn10
 # testFileName=test_bn10
@@ -43,6 +41,8 @@ mlirFileName = aie2_bottleneckB
 
 
 
+mlirFileName = aie2_bottleneckB_wts_L2
+testFileName=test_wts_L2
 
 VPATH := ${srcdir}/../../../../aie_kernels/aie2
 

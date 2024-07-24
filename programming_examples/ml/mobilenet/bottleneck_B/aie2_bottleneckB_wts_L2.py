@@ -225,7 +225,7 @@ class bottleneckBCore:
         OF_b10_act_layer1_layer2 = object_fifo("OF_b10_act_layer1_layer2", self.computeTileBN10_1, [self.computeTileBN10_2], 4,b10_layer2_in,via_DMA=True) 
         OF_b10_act_layer2_layer3 = object_fifo("OF_b10_act_layer2_layer3", self.computeTileBN10_2, [self.computeTileBN10_3], 2,b10_layer3_in) 
         # ************************ bneck11 ************************ 
-        OF_b10_layer3_bn_11_layer1 = object_fifo("OF_b10_layer3_bn_11_layer1", self.computeTileBN10_3, [self.computeTileBN11_1,self.skipMemTile], [2, 2, 6], b11_layer1_in) 
+        OF_b10_layer3_bn_11_layer1 = object_fifo("OF_b10_layer3_bn_11_layer1", self.computeTileBN10_3, [self.computeTileBN11_1,self.skipMemTile], [2, 2, 4], b11_layer1_in) 
         OF_b11_skip = object_fifo("OF_b11_skip", self.skipMemTile, [self.computeTileBN11_3], 2,b11_layer1_in) 
         object_fifo_link(OF_b10_layer3_bn_11_layer1,OF_b11_skip ) 
         OF_b11_act_layer1_layer2 = object_fifo("OF_b11_act_layer1_layer2", self.computeTileBN11_1, [self.computeTileBN11_2], 4,b11_layer2_in,via_DMA=True) 

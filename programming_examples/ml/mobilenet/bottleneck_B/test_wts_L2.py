@@ -7,14 +7,13 @@
 
 import torch
 import torch.nn as nn
-
 import sys
 import math
 from aie.utils.ml import DataShaper
 import time
 import os
 import numpy as np
-from aie.utils.xrt import setup_aie, extract_trace, write_out_trace, execute, write_wts, execute_inference
+from aie.utils.xrt import setup_aie, extract_trace, write_out_trace, execute,execute_inference,write_wts
 import aie.utils.test as test_utils
 from dolphin import print_dolphin
 from brevitas.nn import QuantConv2d, QuantIdentity, QuantReLU
@@ -34,29 +33,9 @@ def convert_to_numpy(array):
 from brevitas_examples.imagenet_classification.ptq.ptq_common import calibrate
 torch.use_deterministic_algorithms(True)
 torch.manual_seed(0)
-from PIL import Image
+
 
 import json
-
-class ExpandChannels(object):
-    def __init__(self, target_channels):
-        self.target_channels = target_channels
-
-    def __call__(self, img):
-        img = torch.Tensor(img)
-        channels, height, width = img.shape
-        if channels == self.target_channels:
-            return img
-        elif channels > self.target_channels:
-            return img[:self.target_channels, :, :]
-        else:
-            # Repeat the existing channels to match the target_channels
-            repeats = self.target_channels // channels
-            remainder = self.target_channels % channels
-            img = img.repeat(repeats, 1, 1)
-            if remainder > 0:
-                img = torch.cat([img, img[:remainder, :, :]], dim=0)
-            return img
 
 # Function to read scale factors from JSON file
 def read_scale_factors(file_path):
@@ -116,7 +95,6 @@ InC_vec =  math.floor(bneck_10_InC1/vectorSize)
 wts_size=((bneck_10_InC1*bneck_10_OutC1)+(3*3*bneck_10_OutC2)+(bneck_10_OutC2*bneck_10_OutC3)+
             (bneck_10_OutC3*bneck_11_OutC1)+(3*3*bneck_11_OutC2)+(bneck_11_OutC2*bneck_11_OutC3)+
             (bneck_11_OutC3*bneck_12_OutC1)+(3*3*bneck_12_OutC2)+(bneck_12_OutC2*bneck_12_OutC3))
-
 
 def main(opts):
     design = "mobilenet_bottleneck_B"
@@ -277,6 +255,12 @@ def main(opts):
                 bit_width=8,
                 return_quant_tensor=True,
             )
+
+            self.bn11_quant_id_2 = QuantIdentity(
+                act_quant=Int8ActPerTensorFixedPoint,
+                bit_width=8,
+                return_quant_tensor=True,
+            )
 # bn12
 # # force alignment between scales going into add
 #             self.bn10_quant_id_2.act_quant.fused_activation_quant_proxy.tensor_quant.scaling_impl = self.bn11_quant_id_2.act_quant.fused_activation_quant_proxy.tensor_quant.scaling_impl
@@ -347,7 +331,7 @@ def main(opts):
             out = self.bn11_quant_relu2(out)
             out = self.bn11_quant_conv3(out)
             out = self.bn10_quant_id_2(out)
-            out=out+out_lhs
+            out = out+out_lhs
             out = self.bn11_add(out)
             # bn12
             out = self.bn12_quant_conv1(out)
@@ -356,13 +340,15 @@ def main(opts):
             out = self.bn12_quant_relu2(out)
             out = self.bn12_quant_conv3(out)
             out = self.bn12_quant_id_2(out)
+          
             return out
 
-    quant_model = QuantBottleneck(in_planes=bneck_10_InC1, bn10_expand=bneck_10_OutC2,bn10_project=bneck_10_OutC3, 
+    quant_bottleneck_model = QuantBottleneck(in_planes=bneck_10_InC1, bn10_expand=bneck_10_OutC2,bn10_project=bneck_10_OutC3, 
                                              bn11_expand=bneck_11_OutC2,bn11_project=bneck_11_OutC3, bn12_expand=bneck_12_OutC2,bn12_project=bneck_12_OutC3)
-    quant_model.eval()
+    quant_bottleneck_model.eval()
     
-
+    from utils import ExpandChannels
+    from brevitas_examples.imagenet_classification.ptq.ptq_common import calibrate
     import torchvision
     import torch.utils.data as data_utils
     from torchvision import transforms
@@ -372,7 +358,7 @@ def main(opts):
         transforms.CenterCrop(224),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ExpandChannels(target_channels=80)  # Expand to 80 channels
+        ExpandChannels(target_channels=bneck_10_InC1)  # Expand to 80 channels
     ])
     data_dir = "data"
     
@@ -391,42 +377,34 @@ def main(opts):
     indices = torch.arange(4)
     val_sub = data_utils.Subset(datset, indices)
     calib_loader = torch.utils.data.DataLoader(dataset=val_sub, batch_size=32, shuffle=False)
-    calibrate(calib_loader, quant_model)
-    
-    # calibrate([(torch.rand(1, bneck_10_InC1, bneck_10_InH1, bneck_10_InW1), 1) for _ in range(5)], quant_model)
-    quant_model.eval()
-
-    for name, param in quant_model.named_parameters():
+    calibrate(calib_loader, quant_bottleneck_model)
+    quant_bottleneck_model.eval()
+    for name, param in quant_bottleneck_model.named_parameters():
         if name.endswith(".bias"):
             param.data.fill_(0)
-    # from brevitas.fx import brevitas_symbolic_trace
-    # model = brevitas_symbolic_trace(quant_model)
+    from brevitas.fx import brevitas_symbolic_trace
+    # model = brevitas_symbolic_trace(quant_bottleneck_model)
     # print(model.graph)
     # print(model)
-        # Convert the tensor to double precision
-    input_tensor_double = input.double()
 
-
-    quant_model.double()
-    q_bottleneck_out = quant_model(input_tensor_double)
+    q_bottleneck_out = quant_bottleneck_model(input)
     golden_output = q_bottleneck_out.int(float_datatype=True).data.numpy().astype(dtype_out)
-
     # print("Golden::Brevitas::", golden_output)
-    q_inp = quant_model.quant_id_1(input)
+    q_inp = quant_bottleneck_model.quant_id_1(input)
     int_inp = q_inp.int(float_datatype=True)
     # print(input.shape)
     # print(int_weight.shape)
     # print(q_bottleneck_out)
 
 
-    init_scale = quant_model.quant_id_1.quant_act_scale()
-    block_10_relu_1 = quant_model.bn10_quant_relu1.quant_act_scale()
-    block_10_relu_2 = quant_model.bn10_quant_relu2.quant_act_scale()
-    block_10_final_scale = quant_model.bn10_quant_id_2.quant_act_scale()
+    init_scale = quant_bottleneck_model.quant_id_1.quant_act_scale()
+    block_10_relu_1 = quant_bottleneck_model.bn10_quant_relu1.quant_act_scale()
+    block_10_relu_2 = quant_bottleneck_model.bn10_quant_relu2.quant_act_scale()
+    block_10_final_scale = quant_bottleneck_model.bn10_quant_id_2.quant_act_scale()
 
-    block_10_weight_scale1 = quant_model.bn10_quant_conv1.quant_weight_scale()
-    block_10_weight_scale2 = quant_model.bn10_quant_conv2.quant_weight_scale()
-    block_10_weight_scale3 = quant_model.bn10_quant_conv3.quant_weight_scale()
+    block_10_weight_scale1 = quant_bottleneck_model.bn10_quant_conv1.quant_weight_scale()
+    block_10_weight_scale2 = quant_bottleneck_model.bn10_quant_conv2.quant_weight_scale()
+    block_10_weight_scale3 = quant_bottleneck_model.bn10_quant_conv3.quant_weight_scale()
 
     block_10_combined_scale1 = -torch.log2(
         init_scale * block_10_weight_scale1 / block_10_relu_1
@@ -437,13 +415,15 @@ def main(opts):
     block_10_combined_scale3 = -torch.log2(
         block_10_relu_2 * block_10_weight_scale3/block_10_final_scale
     )   
-    block_11_relu_1 =       quant_model.bn11_quant_relu1.quant_act_scale()
-    block_11_relu_2 =       quant_model.bn11_quant_relu2.quant_act_scale()
-    block_11_skip_add =     quant_model.bn11_add.quant_act_scale()
+    block_11_relu_1 =       quant_bottleneck_model.bn11_quant_relu1.quant_act_scale()
+    block_11_relu_2 =       quant_bottleneck_model.bn11_quant_relu2.quant_act_scale()
+    block_11_skip_add =     quant_bottleneck_model.bn11_add.quant_act_scale()
+    block_11_final_scale =  quant_bottleneck_model.bn11_quant_id_2.quant_act_scale()
 
-    block_11_weight_scale1 = quant_model.bn11_quant_conv1.quant_weight_scale()
-    block_11_weight_scale2 = quant_model.bn11_quant_conv2.quant_weight_scale()
-    block_11_weight_scale3 = quant_model.bn11_quant_conv3.quant_weight_scale()
+    block_11_weight_scale1 = quant_bottleneck_model.bn11_quant_conv1.quant_weight_scale()
+    block_11_weight_scale2 = quant_bottleneck_model.bn11_quant_conv2.quant_weight_scale()
+    block_11_weight_scale3 = quant_bottleneck_model.bn11_quant_conv3.quant_weight_scale()
+    
     block_11_combined_scale1 = -torch.log2(
         block_10_final_scale * block_11_weight_scale1 / block_11_relu_1
     )
@@ -457,13 +437,13 @@ def main(opts):
         block_10_final_scale / block_11_skip_add
     )  # After addition | clip -128-->127
 
-    block_12_relu_1 =        quant_model.bn12_quant_relu1.quant_act_scale()
-    block_12_relu_2 =        quant_model.bn12_quant_relu2.quant_act_scale()
-    block_12_final_scale =   quant_model.bn12_quant_id_2.quant_act_scale()
+    block_12_relu_1 =        quant_bottleneck_model.bn12_quant_relu1.quant_act_scale()
+    block_12_relu_2 =        quant_bottleneck_model.bn12_quant_relu2.quant_act_scale()
+    block_12_final_scale =   quant_bottleneck_model.bn12_quant_id_2.quant_act_scale()
 
-    block_12_weight_scale1 = quant_model.bn12_quant_conv1.quant_weight_scale()
-    block_12_weight_scale2 = quant_model.bn12_quant_conv2.quant_weight_scale()
-    block_12_weight_scale3 = quant_model.bn12_quant_conv3.quant_weight_scale()
+    block_12_weight_scale1 = quant_bottleneck_model.bn12_quant_conv1.quant_weight_scale()
+    block_12_weight_scale2 = quant_bottleneck_model.bn12_quant_conv2.quant_weight_scale()
+    block_12_weight_scale3 = quant_bottleneck_model.bn12_quant_conv3.quant_weight_scale()
 
     block_12_combined_scale1 = -torch.log2(
         block_11_skip_add * block_12_weight_scale1 / block_12_relu_1
@@ -477,7 +457,8 @@ def main(opts):
     
     atol=block_12_final_scale.item()
 
-    print("********************BN11*******************************")
+
+    print("********************BN10*******************************")
     print("combined_scale after conv1x1:", block_10_combined_scale1.item())
     print("combined_scale after conv3x3:", block_10_combined_scale2.item())
     print("combined_scale after conv1x1:", block_10_combined_scale3.item())
@@ -486,7 +467,7 @@ def main(opts):
     scale_factors["BN10"]["conv3x3"] = int(block_10_combined_scale2.item() )
     scale_factors["BN10"]["conv1x1_2"] = int(block_10_combined_scale3.item())
     
-    print("********************BN12*******************************")
+    print("********************BN11*******************************")
     print("combined_scale after conv1x1:", block_11_combined_scale1.item())
     print("combined_scale after conv3x3:", block_11_combined_scale2.item())
     print("combined_scale after conv1x1:", block_11_combined_scale3.item())
@@ -505,37 +486,38 @@ def main(opts):
     scale_factors["BN12"]["conv3x3"] = int(block_12_combined_scale2.item() )
     scale_factors["BN12"]["conv1x1_2"] = int(block_12_combined_scale3.item())
 
+
     write_scale_factors(file_path, scale_factors)
     # ------------------------------------------------------
     # Reorder input data-layout
     # ------------------------------------------------------
-    block_10_int_weight_1 = quant_model.bn10_quant_conv1.quant_weight().int(
+    block_10_int_weight_1 = quant_bottleneck_model.bn10_quant_conv1.quant_weight().int(
         float_datatype=True
     )
-    block_10_int_weight_2 = quant_model.bn10_quant_conv2.quant_weight().int(
+    block_10_int_weight_2 = quant_bottleneck_model.bn10_quant_conv2.quant_weight().int(
         float_datatype=True
     )
-    block_10_int_weight_3 = quant_model.bn10_quant_conv3.quant_weight().int(
+    block_10_int_weight_3 = quant_bottleneck_model.bn10_quant_conv3.quant_weight().int(
         float_datatype=True
     )
   
-    block_11_int_weight_1 = quant_model.bn11_quant_conv1.quant_weight().int(
+    block_11_int_weight_1 = quant_bottleneck_model.bn11_quant_conv1.quant_weight().int(
         float_datatype=True
     )
-    block_11_int_weight_2 = quant_model.bn11_quant_conv2.quant_weight().int(
+    block_11_int_weight_2 = quant_bottleneck_model.bn11_quant_conv2.quant_weight().int(
         float_datatype=True
     )
-    block_11_int_weight_3 = quant_model.bn11_quant_conv3.quant_weight().int(
+    block_11_int_weight_3 = quant_bottleneck_model.bn11_quant_conv3.quant_weight().int(
         float_datatype=True
     )
 
-    block_12_int_weight_1 = quant_model.bn12_quant_conv1.quant_weight().int(
+    block_12_int_weight_1 = quant_bottleneck_model.bn12_quant_conv1.quant_weight().int(
         float_datatype=True
     )
-    block_12_int_weight_2 = quant_model.bn12_quant_conv2.quant_weight().int(
+    block_12_int_weight_2 = quant_bottleneck_model.bn12_quant_conv2.quant_weight().int(
         float_datatype=True
     )
-    block_12_int_weight_3 = quant_model.bn12_quant_conv3.quant_weight().int(
+    block_12_int_weight_3 = quant_bottleneck_model.bn12_quant_conv3.quant_weight().int(
         float_datatype=True
     )
   
@@ -590,10 +572,10 @@ def main(opts):
     # ------------------------------------------------------
     # Main run loop
     # ------------------------------------------------------
-    times = []
-    write_wts(app,total_wts)
+    
     
     times = []
+    write_wts(app,total_wts)
     for i in range(num_iter):
         start = time.time_ns()
         aie_output = execute_inference(app, ifm_mem_fmt) 
@@ -613,8 +595,8 @@ def main(opts):
         ofm_mem_fmt_out = torch.from_numpy(ofm_mem_fmt).unsqueeze(0)
         # print("\nIter:{}, NPU time: {}us.".format(i,int((npu_time) / 1000)))
         # 
-        # print("AIE:",ofm_mem_fmt_out)
-        # print("Golden (int):",golden_output)
+        print("AIE:",ofm_mem_fmt_out)
+        print("Golden (int):",golden_output)
 
         # ------------------------------------------------------
         # Compare the AIE output and the golden reference
@@ -622,33 +604,31 @@ def main(opts):
     
 
         # print("Golden  (float): ",q_bottleneck_out.value.detach())
-        max_diff=np.max(np.abs(ofm_mem_fmt* atol - convert_to_numpy(q_bottleneck_out.value.detach().numpy())))
         
         golden=convert_to_numpy(golden_output)
         ofm_mem_fmt_out=convert_to_numpy(ofm_mem_fmt_out)
         max_diff_int = np.max((golden)-(ofm_mem_fmt_out))
-        print("atol: {} max difference (float/int): {} / {}".format(atol,max_diff,max_diff_int))
+        # print("atol: {} max difference (float/int): {} / {}".format(atol,max_diff,max_diff_int))
+        print("max difference (int): {}".format(max_diff_int))
     average_time = sum(times) / num_iter
     best_time = min(times)
     print("\nNPU time= Avg: {}us, Best: {}us.".format(int((average_time) / 1000),int((best_time) / 1000)))
-    
 
-    # if np.allclose(
-    #     golden,
-    #     ofm_mem_fmt_out,
-    #     rtol=0,
-    #     atol=5,
-    # ):
-    #     print("\nPASS!\n")
-    #     print_dolphin()
-    #     exit(0)
-    # else:
-    #     print("\nFailed.\n")
-    #     exit(-1)
+    if np.allclose(
+        golden,
+        ofm_mem_fmt_out,
+        rtol=0,
+        atol=5,
+    ):
+        print("\nPASS!\n")
+        print_dolphin()
+        exit(0)
+    else:
+        print("\nFailed.\n")
+        exit(-1)
 
 
 if __name__ == "__main__":
     p = test_utils.create_default_argparser()
     opts = p.parse_args(sys.argv[1:])
     main(opts)
-
